@@ -1,0 +1,104 @@
+# Единый compose на все ML-сервисы: ASR (GigaAM), эмбеддер, OCR (PaddleOCR-VL).
+# Поднимает их одной командой. Каждый сервис собирается из своей папки и читает
+# свой .env (там модель, потоки CPU и т.п.). Порты на хосте разведены, чтобы не
+# конфликтовать; переопределяются переменными ASR_PORT / EMBEDDER_PORT / OCR_PORT.
+#
+#   docker compose up -d --build            # поднять все три
+#   docker compose up -d --build embedder   # поднять только один
+#   docker compose --profile prepare run --rm ocr-prepare   # прогреть кеш модели
+#
+# Каждая папка сохраняет и свой автономный docker-compose.yml — этот корневой
+# файл их не заменяет, а собирает вместе.
+
+services:
+  # --- ASR: распознавание речи (GigaAM, ONNX) ---
+  asr:
+    container_name: asr_gigaam_1
+    build: ./asr-gigaam
+    env_file: ./asr-gigaam/.env
+    ports:
+      - "${ASR_PORT:-8000}:8000"
+    volumes:
+      - ./asr-gigaam/models:/app/models
+      - ./asr-gigaam/tmp:/app/tmp
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  # --- Эмбеддер текста (sentence-transformers) ---
+  embedder:
+    container_name: embedder_e5_1
+    build: ./embedder
+    env_file: ./embedder/.env
+    ports:
+      - "${EMBEDDER_PORT:-8001}:8000"
+    volumes:
+      - ./embedder/models:/app/models
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+
+  # --- OCR (PaddleOCR-VL, transformers/torch) ---
+  ocr:
+    container_name: ocr_paddleocr_1
+    build: ./ocr
+    env_file: ./ocr/.env
+    ports:
+      - "${OCR_PORT:-8002}:8000"
+    volumes:
+      - ./ocr/models:/app/models
+      - ./ocr/tmp:/app/tmp
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)
+      interval: 30s
+      timeout: 10s
+      # start_period больше: на старте импортируется torch/transformers.
+      start_period: 60s
+      retries: 3
+
+  # --- Разовый прогрев кешей моделей (профиль prepare, обычным up не стартуют) ---
+  # Запуск: docker compose --profile prepare run --rm <asr|embedder|ocr>-prepare
+  asr-prepare:
+    build: ./asr-gigaam
+    env_file: ./asr-gigaam/.env
+    profiles: ["prepare"]
+    volumes:
+      - ./asr-gigaam/models:/app/models
+    command: ["python", "download_model.py"]
+
+  embedder-prepare:
+    build: ./embedder
+    env_file: ./embedder/.env
+    profiles: ["prepare"]
+    volumes:
+      - ./embedder/models:/app/models
+    command: ["python", "download_model.py"]
+
+  ocr-prepare:
+    build: ./ocr
+    env_file: ./ocr/.env
+    profiles: ["prepare"]
+    volumes:
+      - ./ocr/models:/app/models
+    command: ["python", "download_model.py"]

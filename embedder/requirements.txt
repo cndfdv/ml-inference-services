@@ -1,0 +1,11 @@
+# Зависимости сервиса эмбеддингов (CPU).
+#
+# Инференс идёт на sentence-transformers поверх torch: библиотека сама скачивает
+# модель с HuggingFace по имени (MODEL_NAME) и кодирует тексты в векторы. torch
+# ставится CPU-only отдельным индексом в Dockerfile, чтобы не тянуть CUDA.
+sentence-transformers
+torch
+numpy
+huggingface_hub
+fastapi
+uvicorn[standard]

@@ -1,0 +1,12 @@
+# Зависимости сервиса инференса (CPU).
+#
+# Инференс идёт на onnxruntime через onnx-asr: она сама скачивает ONNX-модель
+# GigaAM с HuggingFace по имени и делает препроцессинг аудио БЕЗ torch. Поэтому
+# ни torch, ни сам gigaam в рантайме не нужны — образ заметно легче.
+onnx-asr
+onnxruntime
+huggingface_hub
+numpy
+fastapi
+uvicorn[standard]
+python-multipart

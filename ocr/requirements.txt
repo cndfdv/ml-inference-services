@@ -1,0 +1,17 @@
+# Зависимости сервиса OCR (CPU).
+#
+# Инференс — PaddleOCR-VL через HuggingFace transformers поверх torch. torch
+# ставится CPU-only отдельным индексом в Dockerfile, чтобы не тянуть CUDA. Модель
+# использует кастомный код (trust_remote_code), которому нужны transformers,
+# einops и sentencepiece (токенизатор ERNIE). PDF рендерим через pypdfium2 (без
+# системного poppler), картинки — через Pillow.
+transformers
+accelerate
+einops
+sentencepiece
+pillow
+pypdfium2
+numpy
+fastapi
+uvicorn[standard]
+python-multipart

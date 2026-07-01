@@ -1,0 +1,32 @@
+services:
+  # Основной сервис распознавания. Поднимается всегда.
+  gigaam:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      # Кеш HuggingFace с весами модели (HF_HOME=/app/models). Качается один
+      # раз, дальше сервис берёт модель отсюда — офлайн.
+      - ./models:/app/models
+      # Временная папка для загруженных аудио: файлы удаляются сразу после
+      # распознавания, сервис ничего не хранит.
+      - ./tmp:/app/tmp
+    restart: unless-stopped
+    # Опционально: жёсткий потолок памяти, чтобы сервис не разрастался.
+    # mem_limit: 2g
+
+  # Разовое скачивание модели с HuggingFace в кеш. Не стартует обычным `up` —
+  # запускается явно: docker compose --profile prepare run --rm prepare
+  # Переиспользует основной образ, только команда другая.
+  prepare:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    profiles: ["prepare"]
+    volumes:
+      - ./models:/app/models
+    command: ["python", "download_model.py"]
