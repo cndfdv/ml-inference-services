@@ -13,6 +13,7 @@ transformers==4.55.0
 accelerate
 einops
 sentencepiece
+protobuf
 pillow
 pypdfium2
 numpy
