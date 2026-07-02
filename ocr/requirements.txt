@@ -5,7 +5,11 @@
 # использует кастомный код (trust_remote_code), которому нужны transformers,
 # einops и sentencepiece (токенизатор ERNIE). PDF рендерим через pypdfium2 (без
 # системного poppler), картинки — через Pillow.
-transformers
+#
+# transformers ЗАПИНЕН: кастомный код модели использует ROPE_INIT_FUNCTIONS['default'],
+# который убрали в transformers v5 (иначе KeyError: 'default' при загрузке). 4.55.0 —
+# версия, рекомендованная FAQ PaddleOCR для инференса через transformers.
+transformers==4.55.0
 accelerate
 einops
 sentencepiece

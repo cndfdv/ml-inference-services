@@ -181,6 +181,11 @@ curl http://{host}:{port}/health
 `--workers 1` в `Dockerfile` — принципиально: иначе каждый воркер держит свою
 копию модели в RAM, и экономия памяти теряется.
 
+> **Про версию transformers.** В `requirements.txt` `transformers` **запинен на
+> 4.55.0**: кастомный код модели использует `ROPE_INIT_FUNCTIONS['default']`,
+> который убрали в transformers v5 (иначе при загрузке — `KeyError: 'default'`).
+> Не снимай пин без проверки совместимости с новой версией.
+
 > **Про скорость.** PaddleOCR-VL — VL-модель ~1B параметров. На CPU генерация
 > медленная (минуты на страницу при большом `MAX_NEW_TOKENS`), особенно
 > многостраничный PDF — отсюда большой `REQUEST_TIMEOUT`. Если нужен throughput —
