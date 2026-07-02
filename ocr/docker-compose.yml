@@ -1,7 +1,7 @@
 services:
   # Основной сервис OCR. Поднимается всегда.
   ocr:
-    container_name: ocr_paddleocr_1
+    container_name: ocr_easyocr_1
     build:
       context: .
       dockerfile: Dockerfile
@@ -11,8 +11,8 @@ services:
       # embedder (8001).
       - "${PORT:-8002}:8000"
     volumes:
-      # Кеш весов HuggingFace (HF_HOME=/app/models). Качается один раз, дальше
-      # сервис берёт веса отсюда — офлайн.
+      # Кеш моделей EasyOCR (EASYOCR_MODULE_PATH=/app/models). Качается один раз,
+      # дальше сервис берёт модели отсюда — офлайн.
       - ./models:/app/models
       # Временная папка для загруженных файлов: удаляются сразу после
       # распознавания, сервис ничего не хранит.
@@ -28,13 +28,13 @@ services:
         - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)
       interval: 30s
       timeout: 10s
-      # start_period большой: первый healthcheck не должен падать, пока сервис
-      # поднимается (импорт torch/transformers). Саму модель /health не грузит.
+      # start_period с запасом: первый healthcheck не должен падать, пока сервис
+      # поднимается (импорт torch/easyocr). Сам ридер /health не грузит.
       start_period: 60s
       retries: 3
-    # Опционально: жёсткий потолок памяти. OCR-VL прожорлив по RAM — при желании
-    # ограничь, но не слишком туго, иначе OOM на крупных страницах.
-    # mem_limit: 6g
+    # Опционально: жёсткий потолок памяти. EasyOCR лёгкий, но крупные страницы
+    # PDF в высоком DPI тоже едят RAM — при желании ограничь.
+    # mem_limit: 2g
 
   # Разовое скачивание весов с HuggingFace в кеш. Не стартует обычным `up` —
   # запускается явно: docker compose --profile prepare run --rm prepare

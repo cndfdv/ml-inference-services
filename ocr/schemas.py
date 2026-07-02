@@ -14,14 +14,14 @@ class OcrResponse:
     """Результат распознавания (ответ `POST /ocr`).
 
     Attributes:
-        model: имя HF-модели из конфигурации (`MODEL_NAME`).
+        langs: языки распознавания из конфигурации (`OCR_LANGS`).
         pages: число распознанных страниц (для картинки — 1, для PDF — по числу
             страниц).
         text: весь распознанный текст, страницы склеены через `PAGE_SEPARATOR`.
         page_texts: распознанный текст по одной строке на страницу.
     """
 
-    model: str
+    langs: list[str]
     pages: int
     text: str
     page_texts: list[str] = field(default_factory=list)
@@ -33,8 +33,8 @@ class HealthResponse:
 
     Attributes:
         status: всегда "ok", если процесс жив и отвечает.
-        model: имя HF-модели из конфигурации (`MODEL_NAME`).
-        loaded: загружена ли модель в RAM прямо сейчас (False — выгружена по
+        model: языки распознавания из конфигурации (`OCR_LANGS`).
+        loaded: загружен ли ридер в RAM прямо сейчас (False — выгружен по
             простою либо ещё не было ни одного запроса).
         queue: сколько запросов сейчас ждёт в очереди воркера.
     """

@@ -1,21 +1,13 @@
 # Зависимости сервиса OCR (CPU).
 #
-# Инференс — PaddleOCR-VL через HuggingFace transformers поверх torch. torch
-# ставится CPU-only отдельным индексом в Dockerfile, чтобы не тянуть CUDA. Модель
-# использует кастомный код (trust_remote_code), которому нужны transformers,
-# einops и sentencepiece (токенизатор ERNIE). PDF рендерим через pypdfium2 (без
+# Инференс — EasyOCR (детекция + распознавание) поверх torch. torch и torchvision
+# ставятся CPU-only отдельным индексом в Dockerfile, чтобы не тянуть CUDA; easyocr
+# подхватывает их уже установленными. easyocr тянет opencv-python-headless (без
+# системного libGL), scikit-image, scipy и пр. PDF рендерим через pypdfium2 (без
 # системного poppler), картинки — через Pillow.
-#
-# transformers ЗАПИНЕН: кастомный код модели использует ROPE_INIT_FUNCTIONS['default'],
-# который убрали в transformers v5 (иначе KeyError: 'default' при загрузке). 4.55.0 —
-# версия, рекомендованная FAQ PaddleOCR для инференса через transformers.
-transformers==4.55.0
-accelerate
-einops
-sentencepiece
-protobuf
-pillow
+easyocr
 pypdfium2
+pillow
 numpy
 fastapi
 uvicorn[standard]

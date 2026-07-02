@@ -18,11 +18,11 @@ import shutil
 import tempfile
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-
 from config import settings
-from ocr import OcrWorker
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from schemas import HealthResponse, OcrResponse
+
+from ocr import OcrWorker
 
 worker = OcrWorker()
 
@@ -38,12 +38,11 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="PaddleOCR-VL OCR (transformers, CPU)",
+    title="EasyOCR OCR (CPU)",
     description=(
-        "Распознавание текста на изображениях и в PDF через PaddleOCR-VL "
-        "(HuggingFace transformers, torch). Инференс на CPU, запросы "
-        "обрабатываются по очереди одним воркером, "
-        "модель выгружается из RAM по простою и поднимается обратно по запросу."
+        "Распознавание текста на изображениях и в PDF через EasyOCR (torch). "
+        "Инференс на CPU, запросы обрабатываются по очереди одним воркером, "
+        "ридер выгружается из RAM по простою и поднимается обратно по запросу."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -55,14 +54,14 @@ app = FastAPI(
     response_model=HealthResponse,
     summary="Проверка состояния сервиса",
     description=(
-        "Возвращает статус процесса, версию пайплайна, загружена ли модель в RAM "
-        "и длину очереди. Не поднимает модель — безопасно дёргать как healthcheck."
+        "Возвращает статус процесса, языки распознавания, загружен ли ридер в RAM "
+        "и длину очереди. Не поднимает ридер — безопасно дёргать как healthcheck."
     ),
 )
 def health() -> HealthResponse:
     return HealthResponse(
         status="ok",
-        model=settings.model_name,
+        model=",".join(settings.langs),
         loaded=worker.loaded,
         queue=worker.queue_size,
     )
@@ -74,8 +73,8 @@ def health() -> HealthResponse:
     summary="Распознать текст на изображении или в PDF",
     description=(
         "Принимает изображение (png/jpg/tiff/bmp/webp) или PDF, ставит его в "
-        "очередь и возвращает распознанный текст (markdown), постранично. Первый "
-        "запрос после простоя дольше обычного — поднимается модель (cold start)."
+        "очередь и возвращает распознанный текст, постранично. Первый запрос "
+        "после простоя дольше обычного — поднимается ридер (cold start)."
     ),
     responses={
         415: {"description": "Неподдерживаемый формат файла"},
@@ -116,7 +115,7 @@ async def ocr(file: UploadFile = File(...)) -> OcrResponse:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return OcrResponse(
-        model=settings.model_name,
+        langs=list(settings.langs),
         pages=len(page_texts),
         text=settings.page_separator.join(page_texts),
         page_texts=page_texts,

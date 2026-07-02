@@ -56,7 +56,7 @@ services:
 
   # --- OCR (PaddleOCR-VL, transformers/torch) ---
   ocr:
-    container_name: ocr_paddleocr_1
+    container_name: ocr_easyocr_1
     build: ./ocr
     env_file: ./ocr/.env
     ports:

@@ -8,7 +8,7 @@ RAM по простою**, вся конфигурация в `.env` каждо�
 |--------|-------|------|-----------|--------|
 | ASR | [`asr-gigaam/`](asr-gigaam/) | 8000 | речь → текст (`POST /transcribe`) | GigaAM, onnx-asr |
 | Эмбеддер | [`embedder/`](embedder/) | 8001 | текст → векторы (`POST /embed`) | sentence-transformers |
-| OCR | [`ocr/`](ocr/) | 8002 | изображение/PDF → текст (`POST /ocr`) | PaddleOCR-VL, transformers |
+| OCR | [`ocr/`](ocr/) | 8002 | изображение/PDF → текст (`POST /ocr`) | EasyOCR (torch) |
 
 У каждого сервиса свой `README.md`, `docs/` и автономный `docker-compose.yml` —
 их можно поднимать по отдельности. Корневой `docker-compose.yml` собирает все три

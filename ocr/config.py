@@ -27,7 +27,7 @@ logging.basicConfig(
 log: logging.Logger = logging.getLogger("ocr-svc")
 
 
-# Расширения, которые принимаем. Картинки открываем через Pillow, PDF рендерим
+# Расширения, которые принимаем. Картинки читаем через Pillow, PDF рендерим
 # постранично через pypdfium2 (без системного poppler). Явный список отсекает
 # мусорные загрузки.
 DEFAULT_ACCEPTED_EXTS: frozenset[str] = frozenset(
@@ -53,24 +53,15 @@ class Settings:
     для локального запуска без докера.
 
     Attributes:
-        model_name: имя HF-модели PaddleOCR-VL для transformers (напр.
-            PaddlePaddle/PaddleOCR-VL, PaddlePaddle/PaddleOCR-VL-1.5). transformers
-            сам качает её с HuggingFace в кеш (HF_HOME).
-        model_class: какой Auto-класс использовать для загрузки —
-            `auto` (пробуем image-text-to-text, затем causal-lm), либо явно
-            `image_text_to_text` / `causal_lm` (разные версии модели требуют
-            разные классы).
-        device: устройство инференса (`cpu`, `cuda`). Сервис рассчитан на CPU.
-        torch_dtype: тип весов (`float32`/`bfloat16`/`float16`). На CPU — float32
-            (bfloat16/float16 на CPU медленные и не везде поддержаны).
-        prompt: текстовый промпт задачи для VLM. `OCR:` — распознать текст; также
-            бывают `Table Recognition:`, `Formula Recognition:`, `Chart Recognition:`.
-        max_new_tokens: потолок генерации на одну страницу (больше — можно длиннее
-            текст, но медленнее; на CPU каждый токен дорогой).
+        langs: языки распознавания для EasyOCR (напр. ("ru", "en")). EasyOCR сам
+            качает нужные модели при первом запуске. Русский совместим с
+            английским в одном ридере.
+        paragraph: группировать ли распознанные строки в абзацы (EasyOCR
+            `paragraph`). False — по строкам (есть уверенность по каждой).
         pdf_dpi: с каким DPI рендерить страницы PDF в картинку перед OCR.
-        idle_ttl: секунд простоя до выгрузки модели из RAM.
+        idle_ttl: секунд простоя до выгрузки ридера из RAM.
         request_timeout: макс. ожидание результата (очередь + инференс), сек;
-            дольше — клиент получает 504. VLM на CPU медленный — таймаут большой.
+            дольше — клиент получает 504.
         tmp_dir: временная папка для загруженных файлов; файл удаляется сразу
             после обработки — сервис ничего не хранит.
         accepted_exts: допустимые расширения входных файлов.
@@ -78,15 +69,11 @@ class Settings:
             PDF в общий текст ответа.
     """
 
-    model_name: str = "PaddlePaddle/PaddleOCR-VL"
-    model_class: str = "auto"
-    device: str = "cpu"
-    torch_dtype: str = "float32"
-    prompt: str = "OCR:"
-    max_new_tokens: int = 2048
+    langs: tuple[str, ...] = ("ru", "en")
+    paragraph: bool = False
     pdf_dpi: int = 150
     idle_ttl: int = 300
-    request_timeout: float = 600.0
+    request_timeout: float = 300.0
     tmp_dir: str = "tmp"
     accepted_exts: frozenset[str] = DEFAULT_ACCEPTED_EXTS
     page_separator: str = "\n\n---\n\n"
@@ -94,13 +81,19 @@ class Settings:
     @classmethod
     def from_env(cls) -> "Settings":
         """Собрать конфигурацию из переменных окружения."""
+        langs_raw = os.environ.get("OCR_LANGS")
+        langs = (
+            tuple(x.strip() for x in langs_raw.split(",") if x.strip()) if langs_raw else cls.langs
+        )
+        paragraph_raw = os.environ.get("PARAGRAPH")
+        paragraph = (
+            paragraph_raw.strip().lower() in {"1", "true", "yes", "on"}
+            if paragraph_raw is not None
+            else cls.paragraph
+        )
         return cls(
-            model_name=os.environ.get("MODEL_NAME", cls.model_name),
-            model_class=os.environ.get("MODEL_CLASS", cls.model_class),
-            device=os.environ.get("DEVICE", cls.device),
-            torch_dtype=os.environ.get("TORCH_DTYPE", cls.torch_dtype),
-            prompt=os.environ.get("OCR_PROMPT", cls.prompt),
-            max_new_tokens=int(os.environ.get("MAX_NEW_TOKENS", cls.max_new_tokens)),
+            langs=langs,
+            paragraph=paragraph,
             pdf_dpi=int(os.environ.get("PDF_DPI", cls.pdf_dpi)),
             idle_ttl=int(os.environ.get("IDLE_TTL", cls.idle_ttl)),
             request_timeout=float(os.environ.get("REQUEST_TIMEOUT", cls.request_timeout)),
