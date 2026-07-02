@@ -3,10 +3,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# torch ставим CPU-only отдельным индексом, чтобы не тянуть CUDA-колёса (иначе
-# образ раздувается на несколько ГБ). Ставим до остальных зависимостей, чтобы
-# transformers подхватил уже установленный CPU-torch.
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# torch и torchvision ставим CPU-only отдельным индексом, чтобы не тянуть CUDA-
+# колёса (иначе образ раздувается на несколько ГБ) и получить совместимую пару
+# версий. torchvision нужен image-процессору PaddleOCR-VL (его remote-код падает
+# без него). Ставим до остальных зависимостей, чтобы transformers подхватил уже
+# установленный CPU-torch.
+RUN pip install --no-cache-dir torch torchvision \
+    --index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt python-dotenv
