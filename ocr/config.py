@@ -58,6 +58,12 @@ class Settings:
             английским в одном ридере.
         paragraph: группировать ли распознанные строки в абзацы (EasyOCR
             `paragraph`). False — по строкам (есть уверенность по каждой).
+        quantize: включать int8-квантизацию распознавателя EasyOCR (быстрее и
+            меньше RAM). Бэкенд квантизации fbgemm требует AVX2 — на CPU без
+            AVX2 (напр. дефолтный QEMU-CPU) квантизованные операции падают с
+            SIGILL. Поэтому фактическое значение дополнительно гейтится наличием
+            AVX2 (см. ocr.py): здесь True лишь разрешает квантизацию там, где она
+            поддерживается.
         pdf_dpi: с каким DPI рендерить страницы PDF в картинку перед OCR.
         idle_ttl: секунд простоя до выгрузки ридера из RAM.
         request_timeout: макс. ожидание результата (очередь + инференс), сек;
@@ -71,6 +77,7 @@ class Settings:
 
     langs: tuple[str, ...] = ("ru", "en")
     paragraph: bool = False
+    quantize: bool = True
     pdf_dpi: int = 150
     idle_ttl: int = 300
     request_timeout: float = 300.0
@@ -91,9 +98,16 @@ class Settings:
             if paragraph_raw is not None
             else cls.paragraph
         )
+        quantize_raw = os.environ.get("QUANTIZE")
+        quantize = (
+            quantize_raw.strip().lower() in {"1", "true", "yes", "on"}
+            if quantize_raw is not None
+            else cls.quantize
+        )
         return cls(
             langs=langs,
             paragraph=paragraph,
+            quantize=quantize,
             pdf_dpi=int(os.environ.get("PDF_DPI", cls.pdf_dpi)),
             idle_ttl=int(os.environ.get("IDLE_TTL", cls.idle_ttl)),
             request_timeout=float(os.environ.get("REQUEST_TIMEOUT", cls.request_timeout)),

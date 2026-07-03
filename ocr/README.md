@@ -136,6 +136,7 @@ curl http://{host}:{port}/health
 | `OCR_LANGS`           | `ru,en`        | языки распознавания EasyOCR (через запятую)     |
 | `EASYOCR_MODULE_PATH` | `/app/models`  | кеш моделей EasyOCR (том `./models`)            |
 | `PARAGRAPH`           | `false`        | группировать строки в абзацы                     |
+| `QUANTIZE`            | `true`         | int8-квантизация (быстрее, меньше RAM); требует AVX2 — на CPU без AVX2 авто-откат на fp32 |
 | `PDF_DPI`             | `150`          | DPI рендера страниц PDF перед OCR                |
 | `TMP_DIR`             | `/app/tmp`     | временная папка для файлов; удаляются сразу после распознавания |
 | `IDLE_TTL`            | `300`          | сек простоя до выгрузки ридера из RAM            |

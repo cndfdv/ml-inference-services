@@ -41,6 +41,21 @@ if _omp:
         log.warning("Не удалось задать число потоков torch (%s): %s", _omp, exc)
 
 
+def _avx2_available() -> bool:
+    """Есть ли у CPU инструкции AVX2.
+
+    Квантизация распознавателя EasyOCR идёт через fbgemm, а он требует AVX2.
+    На CPU без AVX2 (напр. дефолтный QEMU Virtual CPU) квантованные операции
+    падают с SIGILL прямо в forward-проходе. Поэтому квантизацию включаем
+    только когда AVX2 реально есть.
+    """
+    try:
+        with open("/proc/cpuinfo") as f:
+            return " avx2 " in f.read().replace("\n", " ")
+    except OSError:
+        return False
+
+
 @dataclass
 class _Job:
     """Одна единица работы для воркера: путь к файлу и куда положить результат."""
@@ -187,11 +202,19 @@ class OcrWorker:
         t0 = time.monotonic()
         import easyocr
 
+        # Квантизация (int8, fbgemm) требует AVX2 — иначе распознаватель падает
+        # с SIGILL. Разрешаем её только когда включена в настройках И CPU
+        # поддерживает AVX2; на CPU без AVX2 тихо откатываемся на fp32.
+        quantize = settings.quantize and _avx2_available()
+        if settings.quantize and not quantize:
+            log.warning("CPU без AVX2 — отключаю квантизацию EasyOCR (fbgemm требует AVX2), fp32.")
+
         # Жёстко фиксируем CPU (gpu=False). Модели EasyOCR качает сам по языкам в
         # каталог EASYOCR_MODULE_PATH (в docker — том), если их там ещё нет.
         self._reader = easyocr.Reader(
             list(settings.langs),
             gpu=False,
+            quantize=quantize,
             model_storage_directory=os.environ.get("EASYOCR_MODULE_PATH") or None,
         )
         self._loaded.set()

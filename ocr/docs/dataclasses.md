@@ -15,6 +15,7 @@
 class Settings:
     langs: tuple[str, ...] = ("ru", "en")
     paragraph: bool = False
+    quantize: bool = True
     pdf_dpi: int = 150
     idle_ttl: int = 300
     request_timeout: float = 300.0
@@ -27,6 +28,7 @@ class Settings:
 |------|-----|--------|----------------|----------|
 | `langs` | `tuple[str, ...]` | `("ru", "en")` | `OCR_LANGS` | Языки распознавания EasyOCR (в env — через запятую). |
 | `paragraph` | `bool` | `False` | `PARAGRAPH` | Группировать распознанные строки в абзацы. |
+| `quantize` | `bool` | `True` | `QUANTIZE` | int8-квантизация распознавателя (быстрее, меньше RAM). Требует AVX2 — на CPU без AVX2 сервис сам откатывается на fp32 (иначе SIGILL). |
 | `pdf_dpi` | `int` | `150` | `PDF_DPI` | DPI рендера страниц PDF в картинку перед OCR. |
 | `idle_ttl` | `int` | `300` | `IDLE_TTL` | Секунд простоя до выгрузки ридера из RAM. |
 | `request_timeout` | `float` | `300.0` | `REQUEST_TIMEOUT` | Макс. ожидание результата (очередь + инференс), сек; дольше — клиент получает `504`. |
