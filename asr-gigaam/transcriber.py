@@ -28,6 +28,8 @@ import time
 from concurrent.futures import Future
 from dataclasses import dataclass
 
+import numpy as np
+import onnx_asr
 from config import log, settings
 
 # Частота дискретизации, к которой приводим любое входное аудио. Совпадает с той,
@@ -40,7 +42,7 @@ class _Job:
     """Одна единица работы для воркера: путь к аудио и куда положить результат."""
 
     audio_path: str
-    future: "Future[str]"
+    future: Future[str]
 
 
 class TranscriberWorker:
@@ -53,7 +55,7 @@ class TranscriberWorker:
     def __init__(self):
         # Очередь без ограничения по размеру: запросы под наплывом просто ждут
         # своей очереди, а не получают отказ.
-        self._jobs: "queue.Queue[_Job | None]" = queue.Queue()
+        self._jobs: queue.Queue[_Job | None] = queue.Queue()
         self._thread = threading.Thread(target=self._run, name="transcriber", daemon=True)
         # Доступ к модели — только из потока воркера. _loaded читает /health
         # из другого потока, поэтому это отдельный потокобезопасный флаг.
@@ -77,9 +79,9 @@ class TranscriberWorker:
     def queue_size(self) -> int:
         return self._jobs.qsize()
 
-    def submit(self, audio_path: str) -> "Future[str]":
+    def submit(self, audio_path: str) -> Future[str]:
         """Поставить аудио в очередь и получить future с результатом."""
-        future: "Future[str]" = Future()
+        future: Future[str] = Future()
         self._jobs.put(_Job(audio_path, future))
         return future
 
@@ -145,15 +147,13 @@ class TranscriberWorker:
         Выдаём сырой PCM f32 на stdout и читаем его в массив — это и есть формат,
         который ждёт recognize (float32 в диапазоне [-1, 1]).
         """
-        import numpy as np
-
         cmd = ["ffmpeg", "-nostdin", "-threads", "1", "-i", audio_path]
         filters = settings.audio_filters.strip()
         if filters:
             cmd += ["-af", filters]
         cmd += ["-ac", "1", "-ar", str(SAMPLE_RATE), "-f", "f32le", "-"]
 
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.run(cmd, capture_output=True)
         if proc.returncode != 0:
             tail = proc.stderr.decode("utf-8", "replace")[-500:]
             raise RuntimeError(f"ffmpeg не смог обработать аудио: {tail}")
@@ -173,9 +173,7 @@ class TranscriberWorker:
         if win <= 0 or waveform.shape[0] <= win:
             chunks = [waveform]
         else:
-            chunks = [
-                waveform[i : i + win] for i in range(0, waveform.shape[0], win)
-            ]
+            chunks = [waveform[i : i + win] for i in range(0, waveform.shape[0], win)]
 
         # Гоним окна батчами по chunk_batch_size: recognize принимает список
         # массивов и возвращает список текстов. Батчим вручную, чтобы пик памяти
@@ -193,8 +191,6 @@ class TranscriberWorker:
             return
         log.info("Поднимаю модель %s...", settings.model_version)
         t0 = time.monotonic()
-        import onnx_asr
-
         # Жёстко фиксируем CPU: сервис рассчитан только на него. onnx-asr сам
         # скачает ONNX-модель с HuggingFace по имени (в кеш HF_HOME) при первом
         # обращении, если её там ещё нет.
@@ -210,9 +206,7 @@ class TranscriberWorker:
         idle = time.monotonic() - self._last_used
         if idle < settings.idle_ttl:
             return
-        log.info(
-            "Простой %.0f c >= %d c — выгружаю модель из RAM.", idle, settings.idle_ttl
-        )
+        log.info("Простой %.0f c >= %d c — выгружаю модель из RAM.", idle, settings.idle_ttl)
         self._model = None
         self._loaded.clear()
         gc.collect()

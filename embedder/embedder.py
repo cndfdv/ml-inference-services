@@ -26,17 +26,17 @@ import time
 from concurrent.futures import Future
 from dataclasses import dataclass
 
+import torch
 from config import log, settings
+from sentence_transformers import SentenceTransformer
 
 # Число потоков CPU фиксируем один раз при импорте модуля. torch читает
 # OMP_NUM_THREADS и сам, но зададим явно для предсказуемости инференса.
 _omp = os.environ.get("OMP_NUM_THREADS")
 if _omp:
     try:
-        import torch
-
         torch.set_num_threads(int(_omp))
-    except Exception as exc:  # torch ещё не поставлен / кривое значение — не падаем
+    except ValueError as exc:  # кривое значение переменной — не падаем
         log.warning("Не удалось задать число потоков torch (%s): %s", _omp, exc)
 
 
@@ -145,8 +145,6 @@ class EmbedderWorker:
             return
         log.info("Поднимаю модель %s...", settings.model_name)
         t0 = time.monotonic()
-        from sentence_transformers import SentenceTransformer
-
         # Жёстко фиксируем CPU: сервис рассчитан только на него. sentence-
         # transformers сам скачает модель с HuggingFace по имени (в кеш HF_HOME)
         # при первом обращении, если её там ещё нет.

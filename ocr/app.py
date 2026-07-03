@@ -1,5 +1,5 @@
 """
-OCR-сервис на PaddleOCR-VL (transformers/torch): HTTP-слой (FastAPI).
+OCR-сервис на EasyOCR (torch, CPU): HTTP-слой (FastAPI).
 
 Распознавание выполняет OcrWorker (см. ocr.py) — один поток с очередью запросов
 и выгрузкой модели по простою. Здесь только приём файлов, постановка в очередь и

@@ -27,17 +27,20 @@ import time
 from concurrent.futures import Future
 from dataclasses import dataclass
 
+import easyocr
+import numpy as np
+import pypdfium2 as pdfium
+import torch
 from config import log, settings
+from PIL import Image
 
 # Число потоков CPU фиксируем один раз при импорте модуля. torch читает
 # OMP_NUM_THREADS и сам, но зададим явно для предсказуемости инференса.
 _omp = os.environ.get("OMP_NUM_THREADS")
 if _omp:
     try:
-        import torch
-
         torch.set_num_threads(int(_omp))
-    except Exception as exc:  # torch ещё не поставлен / кривое значение — не падаем
+    except ValueError as exc:  # кривое значение переменной — не падаем
         log.warning("Не удалось задать число потоков torch (%s): %s", _omp, exc)
 
 
@@ -163,12 +166,7 @@ class OcrWorker:
         Картинка → одна страница. PDF рендерим постранично через pypdfium2 с DPI
         из настроек (без системного poppler).
         """
-        import numpy as np
-        from PIL import Image
-
         if os.path.splitext(file_path)[1].lower() == ".pdf":
-            import pypdfium2 as pdfium
-
             pdf = pdfium.PdfDocument(file_path)
             try:
                 scale = settings.pdf_dpi / 72.0  # pypdfium2 масштабирует от 72 DPI
@@ -200,8 +198,6 @@ class OcrWorker:
             return
         log.info("Поднимаю EasyOCR (%s)...", ",".join(settings.langs))
         t0 = time.monotonic()
-        import easyocr
-
         # Квантизация (int8, fbgemm) требует AVX2 — иначе распознаватель падает
         # с SIGILL. Разрешаем её только когда включена в настройках И CPU
         # поддерживает AVX2; на CPU без AVX2 тихо откатываемся на fp32.

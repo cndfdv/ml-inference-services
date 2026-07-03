@@ -19,9 +19,8 @@ import shutil
 import tempfile
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
-
 from config import settings
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from schemas import HealthResponse, TranscribeResponse
 from transcriber import TranscriberWorker
 
@@ -97,9 +96,7 @@ async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
     # сервис аудио не хранит. Декодирование (mp3/mp4 через ffmpeg) — тоже воркер.
     # Саму запись выносим в поток (to_thread): copyfileobj синхронный, а большая
     # загрузка иначе заблокировала бы event loop на всё время копирования.
-    with tempfile.NamedTemporaryFile(
-        suffix=suffix, dir=settings.tmp_dir, delete=False
-    ) as tmp:
+    with tempfile.NamedTemporaryFile(suffix=suffix, dir=settings.tmp_dir, delete=False) as tmp:
         await asyncio.to_thread(shutil.copyfileobj, file.file, tmp)
         audio_path = tmp.name
 
@@ -107,14 +104,12 @@ async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
 
     # Ждём результат, не блокируя event loop.
     try:
-        text = await asyncio.wait_for(
-            asyncio.wrap_future(future), timeout=settings.request_timeout
-        )
+        text = await asyncio.wait_for(asyncio.wrap_future(future), timeout=settings.request_timeout)
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=504, detail="Время ожидания распознавания истекло"
-        )
+        ) from None
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return TranscribeResponse(text=text)

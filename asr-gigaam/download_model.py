@@ -18,7 +18,9 @@ MODEL_VERSION = os.environ.get("MODEL_VERSION", "gigaam-v3-ctc")
 
 
 def main() -> None:
-    print(f"Скачиваю модель {MODEL_VERSION} с HuggingFace (кеш: {os.environ.get('HF_HOME', 'по умолчанию')})...")
+    print(
+        f"Скачиваю модель {MODEL_VERSION} с HuggingFace (кеш: {os.environ.get('HF_HOME', 'по умолчанию')})..."
+    )
     onnx_asr.load_model(MODEL_VERSION, providers=["CPUExecutionProvider"])
     print("Готово. Модель лежит в кеше HuggingFace — сервис возьмёт её оттуда.")
 

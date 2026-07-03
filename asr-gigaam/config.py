@@ -89,14 +89,10 @@ class Settings:
         return cls(
             model_version=os.environ.get("MODEL_VERSION", cls.model_version),
             idle_ttl=int(os.environ.get("IDLE_TTL", cls.idle_ttl)),
-            request_timeout=float(
-                os.environ.get("REQUEST_TIMEOUT", cls.request_timeout)
-            ),
+            request_timeout=float(os.environ.get("REQUEST_TIMEOUT", cls.request_timeout)),
             tmp_dir=os.environ.get("TMP_DIR", cls.tmp_dir),
             chunk_sec=int(os.environ.get("CHUNK_SEC", cls.chunk_sec)),
-            chunk_batch_size=int(
-                os.environ.get("CHUNK_BATCH_SIZE", cls.chunk_batch_size)
-            ),
+            chunk_batch_size=int(os.environ.get("CHUNK_BATCH_SIZE", cls.chunk_batch_size)),
             audio_filters=os.environ.get("AUDIO_FILTERS", cls.audio_filters),
         )
 

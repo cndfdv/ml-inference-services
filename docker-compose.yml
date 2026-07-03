@@ -1,4 +1,4 @@
-# Единый compose на все ML-сервисы: ASR (GigaAM), эмбеддер, OCR (PaddleOCR-VL).
+# Единый compose на все ML-сервисы: ASR (GigaAM), эмбеддер, OCR (EasyOCR).
 # Поднимает их одной командой. Каждый сервис собирается из своей папки и читает
 # свой .env (там модель, потоки CPU и т.п.). Порты на хосте разведены, чтобы не
 # конфликтовать; переопределяются переменными ASR_PORT / EMBEDDER_PORT / OCR_PORT.
@@ -54,7 +54,7 @@ services:
       start_period: 40s
       retries: 3
 
-  # --- OCR (PaddleOCR-VL, transformers/torch) ---
+  # --- OCR (EasyOCR, torch) ---
   ocr:
     container_name: ocr_easyocr_1
     build: ./ocr
@@ -73,7 +73,7 @@ services:
         - import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)
       interval: 30s
       timeout: 10s
-      # start_period больше: на старте импортируется torch/transformers.
+      # start_period больше: на старте импортируется torch/easyocr.
       start_period: 60s
       retries: 3
 
