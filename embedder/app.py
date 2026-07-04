@@ -1,14 +1,14 @@
 """
 Сервис эмбеддингов текста: HTTP-слой (FastAPI).
 
-Кодирование выполняет EmbedderWorker (см. embedder.py) — один поток с очередью
-запросов и выгрузкой модели по простою. Здесь только приём текстов, постановка в
-очередь и ожидание результата. Конфиг — в config.py, контракты API — в schemas.py.
+Вся тяжёлая работа — в EmbedderWorker (embedder.py): один поток, очередь,
+выгрузка модели по простою. Здесь дело простое — принять тексты, поставить в
+очередь, дождаться векторов. Настройки в config.py, контракты API в schemas.py.
 
-Интерактивная документация API доступна после запуска на `/docs` (Swagger UI)
-и `/redoc`, машиночитаемая схема — на `/openapi.json`.
+После запуска живая документация — на `/docs` (Swagger UI) и `/redoc`, сырая
+OpenAPI-схема — на `/openapi.json`.
 
-Запуск (один воркер uvicorn — это принципиально, см. README):
+Запуск (ровно один воркер uvicorn — это важно, см. README):
     uvicorn app:app --host 0.0.0.0 --port 8001 --workers 1
 """
 
@@ -26,10 +26,10 @@ worker = EmbedderWorker()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Старт: поднимаем поток-воркер (модель грузится лениво по первому запросу).
+    # Старт: запускаем воркер (модель подгрузится сама на первом запросе).
     worker.start()
     yield
-    # Остановка: гасим воркер (кладём «отравленную пилюлю» и ждём завершения).
+    # Стоп: гасим воркер и ждём, пока он завершится.
     worker.stop()
 
 
@@ -88,7 +88,7 @@ async def embed(req: EmbedRequest) -> EmbedResponse:
 
     future = worker.submit(req.texts)
 
-    # Ждём результат, не блокируя event loop.
+    # Ждём результат, не подвешивая event loop.
     try:
         vectors = await asyncio.wait_for(
             asyncio.wrap_future(future), timeout=settings.request_timeout

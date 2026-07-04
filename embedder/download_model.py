@@ -1,10 +1,9 @@
 """
-Разовая загрузка модели эмбеддера с HuggingFace в кеш.
+Разовый прогрев кеша: тянем модель эмбеддера с HuggingFace заранее.
 
 sentence-transformers сам качает модель по имени (напр. intfloat/multilingual-
-e5-base) с HuggingFace в кеш — путь задаётся переменной HF_HOME. Этот скрипт
-просто прогревает кеш заранее, чтобы сервис не качал модель во время первого
-запроса. Запускать один раз.
+e5-base) в кеш HuggingFace (путь — HF_HOME). Гоняем один раз до старта, чтобы
+первый запрос к сервису не ждал скачивания.
 
 Запуск:
     python download_model.py
@@ -21,7 +20,7 @@ def main() -> None:
     cache = os.environ.get("HF_HOME", "по умолчанию")
     print(f"Скачиваю модель {MODEL_NAME} с HuggingFace (кеш: {cache})...")
     SentenceTransformer(MODEL_NAME, device="cpu")
-    print("Готово. Модель лежит в кеше HuggingFace — сервис возьмёт её оттуда.")
+    print("Готово. Модель в кеше HuggingFace — сервис подхватит её оттуда.")
 
 
 if __name__ == "__main__":

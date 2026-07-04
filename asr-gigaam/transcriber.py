@@ -1,20 +1,15 @@
 """
-Поток-воркер, владеющий ASR-моделью.
+Поток-воркер с ASR-моделью GigaAM.
 
-Распознавание на CPU тяжёлое и однопоточное по своей сути, поэтому гнать
-несколько инференсов параллельно смысла нет — они только мешали бы друг другу.
-Вместо этого все запросы выстраиваются в очередь, а обрабатывает их один
-выделенный поток-воркер. У такого подхода приятный побочный эффект: модель
-живёт только внутри воркера, к ней больше никто не лезет, и никакие блокировки
-для защиты от гонок не нужны.
+CPU-инференс однопоточный, параллелить запросы смысла нет — только дрались бы
+за ядра. Поэтому всё идёт через одну очередь и единственный воркер; заодно
+модель никто не шарит между потоками, и локи не нужны.
 
-Модель не грузится на старте. Первый запрос поднимает её в RAM (cold start —
-несколько секунд). Если запросов не было дольше IDLE_TTL, воркер сам выгружает
-модель и освобождает память. Следующий запрос поднимет её заново.
+Модель поднимается лениво по первому запросу (cold start — несколько секунд) и
+выгружается из RAM после IDLE_TTL простоя; следующий запрос грузит её заново.
 
-Инференс — на onnxruntime через библиотеку onnx-asr: она сама скачивает ONNX-
-модель GigaAM с HuggingFace по имени (напр. gigaam-v3-ctc) и делает препроцессинг
-без torch.
+Под капотом — onnx-asr поверх onnxruntime: сам качает ONNX-модель GigaAM с
+HuggingFace по имени (напр. gigaam-v3-ctc), препроцессинг без torch.
 """
 
 from __future__ import annotations
@@ -32,33 +27,32 @@ import numpy as np
 import onnx_asr
 from config import log, settings
 
-# Частота дискретизации, к которой приводим любое входное аудио. Совпадает с той,
-# на которой обучалась модель; onnx-asr ожидает 16 кГц моно.
+# 16 кГц моно — на этом модель училась, столько же ждёт onnx-asr. Любой вход
+# приводим к этой частоте.
 SAMPLE_RATE = 16000
 
 
 @dataclass
 class _Job:
-    """Одна единица работы для воркера: путь к аудио и куда положить результат."""
+    """Задача для воркера: путь к аудио и future, куда вернуть текст."""
 
     audio_path: str
     future: Future[str]
 
 
 class TranscriberWorker:
-    """Поток-воркер: владеет ASR-моделью и обрабатывает очередь запросов.
+    """Поток-воркер: держит ASR-модель и разгребает очередь запросов.
 
-    Всё, что касается модели (загрузка, инференс, выгрузка), происходит только
-    здесь, в одном потоке. Поэтому состояние можно трогать без блокировок.
+    Модель трогает только этот поток — грузит, гоняет инференс, выгружает.
+    Раз доступ из одного потока, состояние живёт без блокировок.
     """
 
     def __init__(self):
-        # Очередь без ограничения по размеру: запросы под наплывом просто ждут
-        # своей очереди, а не получают отказ.
+        # Очередь без лимита: при наплыве запросы ждут, а не отбиваются отказом.
         self._jobs: queue.Queue[_Job | None] = queue.Queue()
         self._thread = threading.Thread(target=self._run, name="transcriber", daemon=True)
-        # Доступ к модели — только из потока воркера. _loaded читает /health
-        # из другого потока, поэтому это отдельный потокобезопасный флаг.
+        # К модели ходит только воркер. А флаг _loaded читает /health из другого
+        # потока — поэтому потокобезопасный Event, а не просто bool.
         self._model = None
         self._loaded = threading.Event()
         self._last_used = 0.0
@@ -67,7 +61,7 @@ class TranscriberWorker:
         self._thread.start()
 
     def stop(self) -> None:
-        # Кладём «отравленную пилюлю», чтобы цикл воркера корректно завершился.
+        # Кидаем None — воркер увидит его в очереди и завершит цикл.
         self._jobs.put(None)
         self._thread.join(timeout=10)
 
@@ -85,28 +79,27 @@ class TranscriberWorker:
         self._jobs.put(_Job(audio_path, future))
         return future
 
-    # ---- внутренняя кухня потока ----
+    # ---- потроха воркера ----
 
     def _run(self) -> None:
         while True:
-            # Спим на get, пока не придёт задача. Таймаут ставим ровно на момент
-            # истечения простоя: проснуться раньше незачем, а проснувшись точно
-            # в срок — сразу выгружаем модель. Если модель не загружена, timeout
-            # = None: выгружать нечего, спим до задачи без холостых пробуждений.
+            # Ждём задачу на get. Таймаут — ровно до конца простоя: проснуться
+            # раньше незачем, а точно в срок — сразу выгрузим модель. Модель не
+            # загружена → timeout=None: выгружать нечего, спим до задачи.
             try:
                 job = self._jobs.get(timeout=self._idle_timeout())
             except queue.Empty:
-                # Проснулись по таймауту — значит простой истёк, пора выгружать.
+                # Проснулись по таймауту — значит простой вышел, выгружаем.
                 self._unload_if_idle()
                 continue
 
-            if job is None:  # сигнал на остановку
+            if job is None:  # сигнал остановки из stop()
                 break
 
             self._process(job)
 
     def _idle_timeout(self) -> float | None:
-        """Сколько секунд спать на get. None — модель не загружена, ждём задачу."""
+        """Сколько спать на get. None — модель не загружена, ждём задачу."""
         if self._model is None:
             return None
         remaining = settings.idle_ttl - (time.monotonic() - self._last_used)
@@ -117,17 +110,15 @@ class TranscriberWorker:
             self._ensure_loaded()
             self._last_used = time.monotonic()
             text = self._transcribe(job.audio_path)
-            self._last_used = time.monotonic()  # инференс долгий, обновляем после
+            self._last_used = time.monotonic()  # инференс долгий, отметимся ещё раз
             job.future.set_result(text)
-        except Exception as exc:  # пробрасываем ошибку ожидающему запросу
+        except Exception as exc:  # отдаём ошибку тому, кто ждёт результат
             log.exception("Инференс упал")
             job.future.set_exception(exc)
         finally:
-            # Аудио — временное. Сервис ничего не хранит (хранение и БД — в
-            # другом сервисе), поэтому файл удаляем сразу после обработки —
-            # успешной или нет. Удаляет именно воркер, а не HTTP-слой: при 504
-            # запрос перестаёт ждать результат, но файл всё ещё нужен воркеру,
-            # пока тот не дочитает его в _transcribe.
+            # Файл временный: хранением занят другой сервис, здесь ничего не
+            # держим. Удаляет именно воркер, а не HTTP-слой: при 504 клиент уже
+            # ушёл, но файл ещё нужен нам, пока _transcribe его не дочитает.
             self._delete(job.audio_path)
 
     @staticmethod
@@ -141,11 +132,10 @@ class TranscriberWorker:
     def _decode_audio(audio_path: str):
         """Декодировать аудио в waveform (numpy float32, моно, 16 кГц) через ffmpeg.
 
-        Почему сами, а не отдаём путь в onnx-asr: recognize по пути читает только
-        PCM-wav, а мы принимаем mp3/mp4/m4a и пр. ffmpeg декодирует любой
-        контейнер и на том же проходе применяет предобработку (AUDIO_FILTERS).
-        Выдаём сырой PCM f32 на stdout и читаем его в массив — это и есть формат,
-        который ждёт recognize (float32 в диапазоне [-1, 1]).
+        Сами, а не через onnx-asr: его recognize по пути читает только PCM-wav, а
+        мы принимаем mp3/mp4/m4a и прочее. ffmpeg вскроет любой контейнер и на том
+        же проходе прогонит предобработку (AUDIO_FILTERS). На выходе — сырой PCM
+        f32 в stdout; ровно это recognize и ждёт (float32 в диапазоне [-1, 1]).
         """
         cmd = ["ffmpeg", "-nostdin", "-threads", "1", "-i", audio_path]
         filters = settings.audio_filters.strip()
@@ -158,17 +148,16 @@ class TranscriberWorker:
             tail = proc.stderr.decode("utf-8", "replace")[-500:]
             raise RuntimeError(f"ffmpeg не смог обработать аудио: {tail}")
 
-        # .copy(): frombuffer даёт read-only view поверх bytes, а дальше массив
-        # может резаться/копироваться — нужен writable буфер.
+        # .copy(): frombuffer отдаёт read-only view поверх bytes, а массив дальше
+        # режется и копируется — нужен writable буфер.
         return np.frombuffer(proc.stdout, dtype=np.float32).copy()
 
     def _transcribe(self, audio_path: str) -> str:
         waveform = self._decode_audio(audio_path)
 
-        # Режем длинное аудио на окна по chunk_sec: энкодер по памяти растёт
-        # ~квадратично от длины, поэтому файл целиком (десятки минут) уводит
-        # процесс в OOM. Окна держат пик памяти ограниченным независимо от
-        # длины записи.
+        # Режем длинное аудио на окна по chunk_sec: память энкодера растёт
+        # ~квадратично от длины, так что файл на десятки минут целиком уводит
+        # процесс в OOM. С окнами пик памяти не зависит от длины записи.
         win = settings.chunk_sec * SAMPLE_RATE
         if win <= 0 or waveform.shape[0] <= win:
             chunks = [waveform]
@@ -176,8 +165,8 @@ class TranscriberWorker:
             chunks = [waveform[i : i + win] for i in range(0, waveform.shape[0], win)]
 
         # Гоним окна батчами по chunk_batch_size: recognize принимает список
-        # массивов и возвращает список текстов. Батчим вручную, чтобы пик памяти
-        # не рос с числом окон (recognize паддит батч под самое длинное окно).
+        # массивов и возвращает список текстов. Батчим вручную, иначе пик памяти
+        # рос бы с числом окон (recognize паддит батч под самое длинное окно).
         results: list[str] = []
         batch_size = max(1, settings.chunk_batch_size)
         for i in range(0, len(chunks), batch_size):
@@ -191,9 +180,8 @@ class TranscriberWorker:
             return
         log.info("Поднимаю модель %s...", settings.model_version)
         t0 = time.monotonic()
-        # Жёстко фиксируем CPU: сервис рассчитан только на него. onnx-asr сам
-        # скачает ONNX-модель с HuggingFace по имени (в кеш HF_HOME) при первом
-        # обращении, если её там ещё нет.
+        # Только CPU — под него сервис и рассчитан. onnx-asr сам стянет ONNX-модель
+        # с HuggingFace по имени (в кеш HF_HOME), если её там ещё нет.
         self._model = onnx_asr.load_model(
             settings.model_version, providers=["CPUExecutionProvider"]
         )

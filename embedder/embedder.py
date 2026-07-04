@@ -1,19 +1,15 @@
 """
-Поток-воркер, владеющий моделью эмбеддера.
+Поток-воркер с моделью эмбеддера.
 
-Инференс на CPU тяжёлый и по своей сути однопоточный (внутри — BLAS/torch на
-нескольких ядрах), поэтому гнать несколько кодирований параллельно смысла нет:
-они только мешали бы друг другу за те же ядра. Вместо этого все запросы
-выстраиваются в очередь, а обрабатывает их один выделенный поток-воркер. Приятный
-побочный эффект: модель живёт только внутри воркера, к ней больше никто не лезет,
-и никакие блокировки для защиты от гонок не нужны.
+Кодирование на CPU и так занимает все ядра через BLAS/torch — гнать несколько
+запросов разом бессмысленно, они лишь мешали бы друг другу. Поэтому один воркер
+и одна очередь: модель ни с кем не делится, гонок нет, локи не нужны.
 
-Модель не грузится на старте. Первый запрос поднимает её в RAM (cold start —
-несколько секунд). Если запросов не было дольше IDLE_TTL, воркер сам выгружает
-модель и освобождает память. Следующий запрос поднимет её заново.
+Модель поднимается лениво по первому запросу (cold start — несколько секунд) и
+выгружается из RAM после IDLE_TTL простоя; следующий запрос грузит её заново.
 
-Инференс — на sentence-transformers (torch, CPU): библиотека сама скачивает
-модель с HuggingFace по имени (MODEL_NAME) в кеш HF_HOME.
+Бэкенд — sentence-transformers (torch, CPU): сам качает модель с HuggingFace по
+имени (MODEL_NAME) в кеш HF_HOME.
 """
 
 from __future__ import annotations
@@ -30,38 +26,37 @@ import torch
 from config import log, settings
 from sentence_transformers import SentenceTransformer
 
-# Число потоков CPU фиксируем один раз при импорте модуля. torch читает
-# OMP_NUM_THREADS и сам, но зададим явно для предсказуемости инференса.
+# Число CPU-потоков torch задаём один раз при импорте. Он и сам читает
+# OMP_NUM_THREADS, но выставим явно — так инференс предсказуемее.
 _omp = os.environ.get("OMP_NUM_THREADS")
 if _omp:
     try:
         torch.set_num_threads(int(_omp))
-    except ValueError as exc:  # кривое значение переменной — не падаем
+    except ValueError as exc:  # мусор в переменной — не роняем сервис
         log.warning("Не удалось задать число потоков torch (%s): %s", _omp, exc)
 
 
 @dataclass
 class _Job:
-    """Одна единица работы для воркера: тексты и куда положить результат."""
+    """Задача для воркера: тексты и future, куда вернуть векторы."""
 
     texts: list[str]
     future: Future[list[list[float]]]
 
 
 class EmbedderWorker:
-    """Поток-воркер: владеет моделью эмбеддера и обрабатывает очередь запросов.
+    """Поток-воркер: держит модель эмбеддера и разгребает очередь запросов.
 
-    Всё, что касается модели (загрузка, инференс, выгрузка), происходит только
-    здесь, в одном потоке. Поэтому состояние можно трогать без блокировок.
+    Модель трогает только этот поток — грузит, кодирует, выгружает. Раз доступ
+    из одного потока, состояние живёт без блокировок.
     """
 
     def __init__(self):
-        # Очередь без ограничения по размеру: запросы под наплывом просто ждут
-        # своей очереди, а не получают отказ.
+        # Очередь без лимита: при наплыве запросы ждут, а не отбиваются отказом.
         self._jobs: queue.Queue[_Job | None] = queue.Queue()
         self._thread = threading.Thread(target=self._run, name="embedder", daemon=True)
-        # Доступ к модели — только из потока воркера. _loaded читает /health
-        # из другого потока, поэтому это отдельный потокобезопасный флаг.
+        # К модели ходит только воркер. А флаг _loaded читает /health из другого
+        # потока — поэтому потокобезопасный Event, а не просто bool.
         self._model = None
         self._loaded = threading.Event()
         self._last_used = 0.0
@@ -70,7 +65,7 @@ class EmbedderWorker:
         self._thread.start()
 
     def stop(self) -> None:
-        # Кладём «отравленную пилюлю», чтобы цикл воркера корректно завершился.
+        # Кидаем None — воркер увидит его в очереди и завершит цикл.
         self._jobs.put(None)
         self._thread.join(timeout=10)
 
@@ -88,28 +83,27 @@ class EmbedderWorker:
         self._jobs.put(_Job(texts, future))
         return future
 
-    # ---- внутренняя кухня потока ----
+    # ---- потроха воркера ----
 
     def _run(self) -> None:
         while True:
-            # Спим на get, пока не придёт задача. Таймаут ставим ровно на момент
-            # истечения простоя: проснуться раньше незачем, а проснувшись точно
-            # в срок — сразу выгружаем модель. Если модель не загружена, timeout
-            # = None: выгружать нечего, спим до задачи без холостых пробуждений.
+            # Ждём задачу на get. Таймаут — ровно до конца простоя: проснуться
+            # раньше незачем, а точно в срок — сразу выгрузим модель. Модель не
+            # загружена → timeout=None: выгружать нечего, спим до задачи.
             try:
                 job = self._jobs.get(timeout=self._idle_timeout())
             except queue.Empty:
-                # Проснулись по таймауту — значит простой истёк, пора выгружать.
+                # Проснулись по таймауту — значит простой вышел, выгружаем.
                 self._unload_if_idle()
                 continue
 
-            if job is None:  # сигнал на остановку
+            if job is None:  # сигнал остановки из stop()
                 break
 
             self._process(job)
 
     def _idle_timeout(self) -> float | None:
-        """Сколько секунд спать на get. None — модель не загружена, ждём задачу."""
+        """Сколько спать на get. None — модель не загружена, ждём задачу."""
         if self._model is None:
             return None
         remaining = settings.idle_ttl - (time.monotonic() - self._last_used)
@@ -120,15 +114,15 @@ class EmbedderWorker:
             self._ensure_loaded()
             self._last_used = time.monotonic()
             vectors = self._embed(job.texts)
-            self._last_used = time.monotonic()  # инференс долгий, обновляем после
+            self._last_used = time.monotonic()  # инференс долгий, отметимся ещё раз
             job.future.set_result(vectors)
-        except Exception as exc:  # пробрасываем ошибку ожидающему запросу
+        except Exception as exc:  # отдаём ошибку тому, кто ждёт результат
             log.exception("Инференс упал")
             job.future.set_exception(exc)
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        # Опциональный префикс к каждому тексту (для асимметричных моделей e5
-        # обычно `query: ` — см. README и EMBED_PREFIX).
+        # Необязательный префикс перед каждым текстом: для асимметричных e5 это
+        # обычно `query: ` (см. README и EMBED_PREFIX).
         inputs = [settings.embed_prefix + t for t in texts] if settings.embed_prefix else texts
         vecs = self._model.encode(
             inputs,
@@ -137,7 +131,7 @@ class EmbedderWorker:
             convert_to_numpy=True,
             show_progress_bar=False,
         )
-        # float32 → обычные списки Python для JSON-ответа.
+        # float32 → обычные python-списки, чтобы уехало в JSON.
         return vecs.astype("float32").tolist()
 
     def _ensure_loaded(self) -> None:
@@ -145,9 +139,8 @@ class EmbedderWorker:
             return
         log.info("Поднимаю модель %s...", settings.model_name)
         t0 = time.monotonic()
-        # Жёстко фиксируем CPU: сервис рассчитан только на него. sentence-
-        # transformers сам скачает модель с HuggingFace по имени (в кеш HF_HOME)
-        # при первом обращении, если её там ещё нет.
+        # Только CPU — под него сервис и рассчитан. sentence-transformers сам
+        # стянет модель с HuggingFace по имени (в кеш HF_HOME), если её там нет.
         self._model = SentenceTransformer(settings.model_name, device="cpu")
         self._loaded.set()
         log.info("Модель загружена за %.1f c.", time.monotonic() - t0)

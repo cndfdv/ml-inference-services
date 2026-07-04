@@ -1,9 +1,9 @@
 """
-Контракты HTTP-API: типы тел ответов.
+Формы ответов HTTP-API.
 
-Описаны обычными dataclass'ами — FastAPI понимает их как `response_model`,
-сериализует и добавляет в OpenAPI-схему (Swagger на `/docs`). Так типы ответов
-задокументированы в одном месте и видны клиентам.
+Описаны dataclass'ами — FastAPI подхватывает их как `response_model`,
+сериализует и добавляет в OpenAPI-схему (Swagger на `/docs`). Один источник
+правды по формату ответа, заодно документация для клиентов.
 """
 
 from dataclasses import dataclass, field

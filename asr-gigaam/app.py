@@ -1,15 +1,14 @@
 """
 ASR-сервис на GigaAM: HTTP-слой (FastAPI).
 
-Распознавание выполняет TranscriberWorker (см. transcriber.py) — один поток с
-очередью запросов и выгрузкой модели по простою. Здесь только приём файлов,
-постановка в очередь и ожидание результата. Конфиг — в config.py, типы
-ответов — в schemas.py.
+Вся тяжёлая работа — в TranscriberWorker (transcriber.py): один поток, очередь,
+выгрузка модели по простою. Здесь дело простое — принять файл, поставить в
+очередь, дождаться текста. Настройки в config.py, схемы ответов в schemas.py.
 
-Интерактивная документация API доступна после запуска на `/docs` (Swagger UI)
-и `/redoc`, машиночитаемая схема — на `/openapi.json`.
+После запуска живая документация — на `/docs` (Swagger UI) и `/redoc`, сырая
+OpenAPI-схема — на `/openapi.json`.
 
-Запуск (один воркер uvicorn — это принципиально, см. README):
+Запуск (ровно один воркер uvicorn — это важно, см. README):
     uvicorn app:app --host 0.0.0.0 --port 8000 --workers 1
 """
 
@@ -29,11 +28,11 @@ worker = TranscriberWorker()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Старт: готовим временную папку и поднимаем поток-воркер.
+    # Старт: заводим временную папку и запускаем воркер.
     os.makedirs(settings.tmp_dir, exist_ok=True)
     worker.start()
     yield
-    # Остановка: гасим воркер (кладём «отравленную пилюлю» и ждём завершения).
+    # Стоп: гасим воркер и ждём, пока он завершится.
     worker.stop()
 
 
@@ -91,18 +90,17 @@ async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
             + ", ".join(sorted(settings.accepted_exts)),
         )
 
-    # Сохраняем загрузку на диск потоково (не держим всё в RAM), во временную
-    # папку с уникальным именем. Файл удаляет воркер сразу после обработки —
-    # сервис аудио не хранит. Декодирование (mp3/mp4 через ffmpeg) — тоже воркер.
-    # Саму запись выносим в поток (to_thread): copyfileobj синхронный, а большая
-    # загрузка иначе заблокировала бы event loop на всё время копирования.
+    # Пишем загрузку на диск потоком, не держа целиком в RAM, во временный файл
+    # с уникальным именем. Дальше его удалит воркер — аудио мы не храним, и
+    # декодирует (mp3/mp4 через ffmpeg) тоже он. Запись уводим в to_thread:
+    # copyfileobj синхронный и на большом файле подвесил бы event loop.
     with tempfile.NamedTemporaryFile(suffix=suffix, dir=settings.tmp_dir, delete=False) as tmp:
         await asyncio.to_thread(shutil.copyfileobj, file.file, tmp)
         audio_path = tmp.name
 
     future = worker.submit(audio_path)
 
-    # Ждём результат, не блокируя event loop.
+    # Ждём результат, не подвешивая event loop.
     try:
         text = await asyncio.wait_for(asyncio.wrap_future(future), timeout=settings.request_timeout)
     except asyncio.TimeoutError:

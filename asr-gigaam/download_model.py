@@ -1,10 +1,9 @@
 """
-Разовая загрузка ONNX-модели GigaAM с HuggingFace в кеш.
+Разовый прогрев кеша: тянем ONNX-модель GigaAM с HuggingFace заранее.
 
-onnx-asr сам качает модель по имени (напр. gigaam-v3-ctc) с HuggingFace
-(репозиторий istupakov/gigaam-v3-onnx) в кеш HuggingFace — путь задаётся
-переменной HF_HOME. Этот скрипт просто прогревает кеш заранее, чтобы сервис не
-качал модель во время первого запроса. Запускать один раз.
+onnx-asr сам качает модель по имени (напр. gigaam-v3-ctc) из репозитория
+istupakov/gigaam-v3-onnx в кеш HuggingFace (путь — HF_HOME). Гоняем это один
+раз до старта, чтобы первый запрос к сервису не ждал скачивания.
 
 Запуск:
     python download_model.py
@@ -22,7 +21,7 @@ def main() -> None:
         f"Скачиваю модель {MODEL_VERSION} с HuggingFace (кеш: {os.environ.get('HF_HOME', 'по умолчанию')})..."
     )
     onnx_asr.load_model(MODEL_VERSION, providers=["CPUExecutionProvider"])
-    print("Готово. Модель лежит в кеше HuggingFace — сервис возьмёт её оттуда.")
+    print("Готово. Модель в кеше HuggingFace — сервис подхватит её оттуда.")
 
 
 if __name__ == "__main__":
