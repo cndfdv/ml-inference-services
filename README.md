@@ -30,7 +30,8 @@ docker compose --profile prepare run --rm embedder-prepare
 docker compose --profile prepare run --rm ocr-prepare
 
 # 3. поднять все три
-c```
+docker compose up -d --build
+```
 
 Один сервис: `docker compose up -d --build embedder`.
 
