@@ -13,7 +13,7 @@
 ```python
 @dataclass(frozen=True)
 class Settings:
-    model_name: str = "intfloat/multilingual-e5-base"
+    model_name: str = "deepvk/USER-bge-m3"
     idle_ttl: int = 120
     request_timeout: float = 300.0
     batch_size: int = 32
@@ -24,12 +24,12 @@ class Settings:
 
 | Поле | Тип | Дефолт | env-переменная | Значение |
 |------|-----|--------|----------------|----------|
-| `model_name` | `str` | `"intfloat/multilingual-e5-base"` | `MODEL_NAME` | Имя HF-модели для sentence-transformers; качается с HuggingFace по имени. |
+| `model_name` | `str` | `"deepvk/USER-bge-m3"` | `MODEL_NAME` | Имя HF-модели для sentence-transformers; качается с HuggingFace по имени. |
 | `idle_ttl` | `int` | `120` | `IDLE_TTL` | Секунд простоя до выгрузки модели из RAM. |
 | `request_timeout` | `float` | `300.0` | `REQUEST_TIMEOUT` | Макс. ожидание результата (очередь + инференс), сек; дольше — клиент получает `504`. |
 | `batch_size` | `int` | `32` | `BATCH_SIZE` | Размер батча при кодировании; больше — быстрее, выше пик памяти. |
 | `normalize` | `bool` | `True` | `NORMALIZE_EMBEDDINGS` | L2-нормализация выходных векторов (удобно для косинуса). |
-| `embed_prefix` | `str` | `""` | `EMBED_PREFIX` | Префикс к каждому тексту перед кодированием (для e5 — `query: `); пусто — без префикса. |
+| `embed_prefix` | `str` | `""` | `EMBED_PREFIX` | Префикс к каждому тексту перед кодированием (bge-m3 не нужен; для e5 — `query: `); пусто — без префикса. |
 | `max_texts` | `int` | `256` | `MAX_TEXTS` | Предел числа текстов в одном запросе (защита от OOM); больше — `422`. |
 
 **Особенности:**

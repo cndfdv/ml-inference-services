@@ -121,8 +121,8 @@ class EmbedderWorker:
             job.future.set_exception(exc)
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
-        # Необязательный префикс перед каждым текстом: для асимметричных e5 это
-        # обычно `query: ` (см. README и EMBED_PREFIX).
+        # Необязательный префикс перед каждым текстом. Дефолтной bge-m3 он не
+        # нужен; пригодится для асимметричных e5 (`query: `, см. EMBED_PREFIX).
         inputs = [settings.embed_prefix + t for t in texts] if settings.embed_prefix else texts
         vecs = self._model.encode(
             inputs,

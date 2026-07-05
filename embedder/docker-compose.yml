@@ -1,7 +1,7 @@
 services:
   # Основной сервис эмбеддингов. Поднимается всегда.
   embedder:
-    container_name: embedder_e5_1
+    container_name: embedder_1
     build:
       context: .
       dockerfile: Dockerfile
@@ -28,8 +28,9 @@ services:
       # поднимается (импорт torch и т.п.). Саму модель /health не грузит.
       start_period: 40s
       retries: 3
-    # Опционально: жёсткий потолок памяти, чтобы сервис не разрастался.
-    # mem_limit: 2g
+    # Опционально: жёсткий потолок памяти, чтобы сервис не разрастался. Под
+    # bge-m3 (fp32, ~2 ГБ на загруженную модель) бери с запасом.
+    # mem_limit: 3g
 
   # Разовое скачивание модели с HuggingFace в кеш. Не стартует обычным `up` —
   # запускается явно: docker compose --profile prepare run --rm prepare

@@ -1,9 +1,9 @@
 """
 Разовый прогрев кеша: тянем модель эмбеддера с HuggingFace заранее.
 
-sentence-transformers сам качает модель по имени (напр. intfloat/multilingual-
-e5-base) в кеш HuggingFace (путь — HF_HOME). Гоняем один раз до старта, чтобы
-первый запрос к сервису не ждал скачивания.
+sentence-transformers сам качает модель по имени (напр. deepvk/USER-bge-m3) в
+кеш HuggingFace (путь — HF_HOME). Гоняем один раз до старта, чтобы первый запрос
+к сервису не ждал скачивания.
 
 Запуск:
     python download_model.py
@@ -13,7 +13,7 @@ import os
 
 from sentence_transformers import SentenceTransformer
 
-MODEL_NAME = os.environ.get("MODEL_NAME", "intfloat/multilingual-e5-base")
+MODEL_NAME = os.environ.get("MODEL_NAME", "deepvk/USER-bge-m3")
 
 
 def main() -> None:

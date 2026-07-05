@@ -35,7 +35,7 @@ services:
 
   # --- Эмбеддер текста (sentence-transformers) ---
   embedder:
-    container_name: embedder_e5_1
+    container_name: embedder_1
     build: ./embedder
     env_file: ./embedder/.env
     ports:

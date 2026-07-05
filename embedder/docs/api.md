@@ -35,8 +35,8 @@ curl -s -X POST http://localhost:8001/embed \
 
 ```json
 {
-  "model": "intfloat/multilingual-e5-base",
-  "dim": 768,
+  "model": "deepvk/USER-bge-m3",
+  "dim": 1024,
   "count": 2,
   "embeddings": [[0.01, -0.02, "..."], [0.03, 0.04, "..."]]
 }
@@ -64,8 +64,9 @@ curl -s -X POST http://localhost:8001/embed \
   инференс. Отказа из-за переполнения нет — очередь не ограничена.
 - **Cold start.** Первый запрос после старта или после простоя дольше `IDLE_TTL`
   дополнительно ждёт подъёма модели в RAM (несколько секунд).
-- **Префикс модели.** Асимметричные модели (e5) ждут `EMBED_PREFIX` (`query: ` и
-  т.п.) — задаётся в `.env`, применяется автоматически ко всем текстам. Детали в
+- **Префикс модели.** Дефолтной bge-m3 префикс не нужен. Асимметричные модели
+  (e5) ждут `EMBED_PREFIX` (`query: ` и т.п.) — задаётся в `.env`, применяется
+  автоматически ко всем текстам. Детали в
   [architecture.md#кодирование-текста](architecture.md#кодирование-текста).
 - **Порядок сохраняется.** `embeddings[i]` соответствует `texts[i]`.
 
@@ -83,7 +84,7 @@ curl http://localhost:8001/health
 ### Ответ `200` — `HealthResponse`
 
 ```json
-{ "status": "ok", "model": "intfloat/multilingual-e5-base", "loaded": false, "queue": 0 }
+{ "status": "ok", "model": "deepvk/USER-bge-m3", "loaded": false, "queue": 0 }
 ```
 
 | Поле     | Тип    | Значение                                                    |

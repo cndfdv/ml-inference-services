@@ -53,10 +53,10 @@ docker compose up -d --build
 curl -s -X POST http://{host}:{port}/embed \
   -H 'Content-Type: application/json' \
   -d '{"texts":["привет мир","тест"]}'
-# {"model":"intfloat/multilingual-e5-base","dim":768,"count":2,"embeddings":[[...],[...]]}
+# {"model":"deepvk/USER-bge-m3","dim":1024,"count":2,"embeddings":[[...],[...]]}
 
 curl http://{host}:{port}/health
-# {"status":"ok","model":"intfloat/multilingual-e5-base","loaded":false,"queue":0}
+# {"status":"ok","model":"deepvk/USER-bge-m3","loaded":false,"queue":0}
 ```
 
 ## API
@@ -81,8 +81,8 @@ curl http://{host}:{port}/health
 
   ```json
   {
-    "model": "intfloat/multilingual-e5-base",
-    "dim": 768,
+    "model": "deepvk/USER-bge-m3",
+    "dim": 1024,
     "count": 2,
     "embeddings": [[0.01, -0.02, ...], [0.03, 0.04, ...]]
   }
@@ -110,7 +110,7 @@ curl http://{host}:{port}/health
 - **Ответ `200`** (`HealthResponse`):
 
   ```json
-  { "status": "ok", "model": "intfloat/multilingual-e5-base", "loaded": false, "queue": 0 }
+  { "status": "ok", "model": "deepvk/USER-bge-m3", "loaded": false, "queue": 0 }
   ```
 
   | Поле     | Тип    | Значение                                              |
@@ -124,14 +124,14 @@ curl http://{host}:{port}/health
 
 | Переменная             | По умолчанию                    | Назначение                                      |
 |------------------------|---------------------------------|-------------------------------------------------|
-| `MODEL_NAME`           | `intfloat/multilingual-e5-base` | имя HF-модели для sentence-transformers         |
+| `MODEL_NAME`           | `deepvk/USER-bge-m3`            | имя HF-модели для sentence-transformers         |
 | `HF_HOME`              | `/app/models`                   | кеш HuggingFace с весами (том `./models`)       |
 | `HF_TOKEN`             | *(пусто)*                       | токен HuggingFace для приватных/gated-моделей и снятия лимитов загрузки |
 | `IDLE_TTL`             | `120`                           | сек простоя до выгрузки модели из RAM           |
 | `REQUEST_TIMEOUT`      | `300`                           | макс. ожидание результата, сек; дольше — `504`  |
 | `BATCH_SIZE`           | `32`                            | размер батча при кодировании (выше — быстрее, больше памяти) |
 | `NORMALIZE_EMBEDDINGS` | `true`                          | L2-нормализация векторов (удобно для косинуса)  |
-| `EMBED_PREFIX`         | *(пусто)*                       | префикс к каждому тексту (для e5 — `query: `)   |
+| `EMBED_PREFIX`         | *(пусто)*                       | префикс к каждому тексту (bge-m3 не нужен; для e5 — `query: `) |
 | `MAX_TEXTS`            | `256`                           | предел числа текстов в запросе; больше — `422`  |
 | `OMP_NUM_THREADS`      | `4`                             | потоки CPU для torch (≈ число физ. ядер)        |
 | `PORT`                 | `8001`                          | порт на хосте                                   |
@@ -141,19 +141,21 @@ curl http://{host}:{port}/health
 > для новой (или просто перезапусти сервис — скачается лениво), затем
 > `docker compose up -d`.
 
-### Про модели e5 и `EMBED_PREFIX`
+### Про `EMBED_PREFIX`
 
-Модели `intfloat/multilingual-e5-*` **асимметричные**: для хорошего качества они
-ждут префикс перед текстом — `query: ` для поисковых запросов и `passage: ` для
-индексируемых документов. Поэтому для e5 выставь в `.env`:
+Дефолтная `deepvk/USER-bge-m3` **симметричная** — префикс ей не нужен, оставляй
+`EMBED_PREFIX` пустым. То же для `sergeyzh/rubert-tiny-turbo`,
+`sentence-transformers/all-MiniLM-L6-v2` и прочих симметричных моделей.
+
+Префикс нужен **асимметричным** моделям `intfloat/multilingual-e5-*`: они ждут
+`query: ` для поисковых запросов и `passage: ` для индексируемых документов.
+Если переключаешься на e5, выставь в `.env`:
 
 ```
 EMBED_PREFIX=query:
 ```
 
-(с завершающим пробелом). Для **симметричных** моделей
-(`sergeyzh/rubert-tiny-turbo`, `sentence-transformers/all-MiniLM-L6-v2` и т.п.)
-префикс не нужен — оставь `EMBED_PREFIX` пустым.
+(с завершающим пробелом).
 
 ## Как это работает
 

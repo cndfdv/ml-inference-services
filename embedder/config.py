@@ -43,20 +43,21 @@ class Settings:
 
     Attributes:
         model_name: имя HF-модели для sentence-transformers (напр.
-            intfloat/multilingual-e5-base). Библиотека сама качает её с
-            HuggingFace в кеш (HF_HOME) при первом обращении.
+            deepvk/USER-bge-m3). Библиотека сама качает её с HuggingFace в кеш
+            (HF_HOME) при первом обращении.
         idle_ttl: секунд простоя до выгрузки модели из RAM.
         request_timeout: макс. ожидание результата (очередь + инференс), сек;
             дольше — клиент получает 504.
         batch_size: размер батча при кодировании текстов.
         normalize: L2-нормализовать ли выходные векторы (удобно для косинуса).
         embed_prefix: префикс, добавляемый к каждому тексту перед кодированием.
-            Для асимметричных моделей e5 обычно `query: ` (см. README). Пустая
-            строка — префикс не добавлять.
+            Дефолтная bge-m3 симметричная — префикс ей не нужен, поэтому пусто.
+            Нужен для асимметричных моделей e5 (`query: ` / `passage: `, см.
+            README). Пустая строка — префикс не добавлять.
         max_texts: предел числа текстов в одном запросе (защита от OOM).
     """
 
-    model_name: str = "intfloat/multilingual-e5-base"
+    model_name: str = "deepvk/USER-bge-m3"
     idle_ttl: int = 120
     request_timeout: float = 300.0
     batch_size: int = 32
