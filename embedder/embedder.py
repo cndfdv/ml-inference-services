@@ -115,15 +115,29 @@ class EmbedderWorker:
             self._last_used = time.monotonic()
             vectors = self._embed(job.texts)
             self._last_used = time.monotonic()  # инференс долгий, отметимся ещё раз
-            job.future.set_result(vectors)
         except Exception as exc:  # отдаём ошибку тому, кто ждёт результат
             log.exception("Инференс упал")
-            job.future.set_exception(exc)
+            self._settle(job.future, exc=exc)
+        else:
+            self._settle(job.future, result=vectors)
+
+    @staticmethod
+    def _settle(future: Future, *, result=None, exc: Exception | None = None) -> None:
+        # future мог быть уже отменён (клиент отвалился по таймауту 504) — тогда
+        # set_result/set_exception бросят InvalidStateError и уронят поток-воркер,
+        # а с ним встанет вся очередь. Поэтому трогаем future только если он ещё жив.
+        if future.done():
+            return
+        if exc is not None:
+            future.set_exception(exc)
+        else:
+            future.set_result(result)
 
     def _embed(self, texts: list[str]) -> list[list[float]]:
         # Необязательный префикс перед каждым текстом. Дефолтной bge-m3 он не
         # нужен; пригодится для асимметричных e5 (`query: `, см. EMBED_PREFIX).
         inputs = [settings.embed_prefix + t for t in texts] if settings.embed_prefix else texts
+        self._warn_if_truncated(inputs)
         vecs = self._model.encode(
             inputs,
             batch_size=settings.batch_size,
@@ -133,6 +147,32 @@ class EmbedderWorker:
         )
         # float32 → обычные python-списки, чтобы уехало в JSON.
         return vecs.astype("float32").tolist()
+
+    def _warn_if_truncated(self, inputs: list[str]) -> None:
+        """Предупредить в лог, если тексты длиннее контекста модели.
+
+        `encode` молча усекает текст до `max_seq_length` токенов — хвост в вектор
+        не попадает. Ждём короткие чанки, так что в норме это не срабатывает; но
+        если чанк придёт длиннее лимита, усечение не должно быть незаметным.
+        Токенизируем без усечения только чтобы посчитать длины — это дёшево на
+        фоне самого инференса.
+        """
+        max_len = self._model.max_seq_length
+        if not max_len:  # у не-Transformer моделей лимита нет — предупреждать не о чем
+            return
+        token_ids = self._model.tokenizer(inputs, truncation=False, add_special_tokens=True)[
+            "input_ids"
+        ]
+        over = [len(ids) for ids in token_ids if len(ids) > max_len]
+        if over:
+            log.warning(
+                "%d из %d текстов длиннее контекста модели (%d токенов) — усечены, "
+                "хвост в вектор не попал (самый длинный в запросе: %d токенов).",
+                len(over),
+                len(inputs),
+                max_len,
+                max(over),
+            )
 
     def _ensure_loaded(self) -> None:
         if self._model is not None:

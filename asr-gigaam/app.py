@@ -95,8 +95,14 @@ async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
     # декодирует (mp3/mp4 через ffmpeg) тоже он. Запись уводим в to_thread:
     # copyfileobj синхронный и на большом файле подвесил бы event loop.
     with tempfile.NamedTemporaryFile(suffix=suffix, dir=settings.tmp_dir, delete=False) as tmp:
-        await asyncio.to_thread(shutil.copyfileobj, file.file, tmp)
         audio_path = tmp.name
+        try:
+            await asyncio.to_thread(shutil.copyfileobj, file.file, tmp)
+        except Exception:
+            # Запись оборвалась (нет места/клиент отвалился) — до submit не дошли,
+            # воркер этот файл не заберёт. Удаляем сами, чтобы не копить сирот.
+            os.remove(audio_path)
+            raise
 
     future = worker.submit(audio_path)
 

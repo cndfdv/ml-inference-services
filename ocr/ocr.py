@@ -134,15 +134,28 @@ class OcrWorker:
             self._last_used = time.monotonic()
             page_texts = self._ocr(job.file_path)
             self._last_used = time.monotonic()  # инференс долгий, отметимся ещё раз
-            job.future.set_result(page_texts)
         except Exception as exc:  # отдаём ошибку тому, кто ждёт результат
             log.exception("Инференс упал")
-            job.future.set_exception(exc)
+            self._settle(job.future, exc=exc)
+        else:
+            self._settle(job.future, result=page_texts)
         finally:
             # Файл временный: хранением занят другой сервис, здесь ничего не
             # держим. Удаляет именно воркер, а не HTTP-слой: при 504 клиент уже
             # ушёл, но файл ещё нужен нам, пока _ocr его не дочитает.
             self._delete(job.file_path)
+
+    @staticmethod
+    def _settle(future: Future, *, result=None, exc: Exception | None = None) -> None:
+        # future мог быть уже отменён (клиент отвалился по таймауту 504) — тогда
+        # set_result/set_exception бросят InvalidStateError и уронят поток-воркер,
+        # а с ним встанет вся очередь. Поэтому трогаем future только если он ещё жив.
+        if future.done():
+            return
+        if exc is not None:
+            future.set_exception(exc)
+        else:
+            future.set_result(result)
 
     @staticmethod
     def _delete(path: str) -> None:
@@ -152,29 +165,32 @@ class OcrWorker:
             log.warning("Не удалось удалить временный файл %s: %s", path, exc)
 
     @staticmethod
-    def _load_images(file_path: str):
-        """Прочитать файл в список numpy-картинок (RGB), по одной на страницу.
+    def _iter_images(file_path: str):
+        """Отдавать картинки страниц по одной (RGB numpy), а не все разом.
 
-        Картинка — это одна страница. PDF рендерим постранично через pypdfium2 с
-        DPI из настроек (системный poppler не нужен).
+        Картинка — это одна страница. Страницы PDF рендерим и выдаём по одной
+        (генератор), чтобы в памяти лежала только текущая: у большого PDF рендер
+        всех страниц сразу — это гигабайты RAM и путь в OOM. DPI — из настроек,
+        системный poppler не нужен.
         """
         if os.path.splitext(file_path)[1].lower() == ".pdf":
             pdf = pdfium.PdfDocument(file_path)
             try:
                 scale = settings.pdf_dpi / 72.0  # pypdfium2 считает масштаб от 72 DPI
-                images = [
-                    np.asarray(pdf[i].render(scale=scale).to_pil().convert("RGB"))
-                    for i in range(len(pdf))
-                ]
+                for i in range(len(pdf)):
+                    yield np.asarray(pdf[i].render(scale=scale).to_pil().convert("RGB"))
             finally:
                 pdf.close()
-            return images
-
-        return [np.asarray(Image.open(file_path).convert("RGB"))]
+        else:
+            yield np.asarray(Image.open(file_path).convert("RGB"))
 
     def _ocr(self, file_path: str) -> list[str]:
-        """Распознать файл: одна строка результата на страницу."""
-        return [self._recognize(image) for image in self._load_images(file_path)]
+        """Распознать файл: одна строка результата на страницу.
+
+        Идём постранично — распознаём картинку и отпускаем её перед следующей,
+        поэтому пик памяти держится одной страницей, а не всем документом.
+        """
+        return [self._recognize(image) for image in self._iter_images(file_path)]
 
     def _recognize(self, image) -> str:
         """Прогнать картинку через EasyOCR и склеить найденные строки.

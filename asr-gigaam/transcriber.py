@@ -111,15 +111,28 @@ class TranscriberWorker:
             self._last_used = time.monotonic()
             text = self._transcribe(job.audio_path)
             self._last_used = time.monotonic()  # инференс долгий, отметимся ещё раз
-            job.future.set_result(text)
         except Exception as exc:  # отдаём ошибку тому, кто ждёт результат
             log.exception("Инференс упал")
-            job.future.set_exception(exc)
+            self._settle(job.future, exc=exc)
+        else:
+            self._settle(job.future, result=text)
         finally:
             # Файл временный: хранением занят другой сервис, здесь ничего не
             # держим. Удаляет именно воркер, а не HTTP-слой: при 504 клиент уже
             # ушёл, но файл ещё нужен нам, пока _transcribe его не дочитает.
             self._delete(job.audio_path)
+
+    @staticmethod
+    def _settle(future: Future, *, result=None, exc: Exception | None = None) -> None:
+        # future мог быть уже отменён (клиент отвалился по таймауту 504) — тогда
+        # set_result/set_exception бросят InvalidStateError и уронят поток-воркер,
+        # а с ним встанет вся очередь. Поэтому трогаем future только если он ещё жив.
+        if future.done():
+            return
+        if exc is not None:
+            future.set_exception(exc)
+        else:
+            future.set_result(result)
 
     @staticmethod
     def _delete(path: str) -> None:
