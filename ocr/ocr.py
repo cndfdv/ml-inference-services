@@ -40,6 +40,14 @@ if _omp:
     except ValueError as exc:  # мусор в переменной — не роняем сервис
         log.warning("Не удалось задать число потоков torch (%s): %s", _omp, exc)
 
+# NNPACK (ускоритель свёрток) не заводится на CPU без нужных инструкций (напр.
+# QEMU без AVX2) и сыплет предупреждениями на каждый слой — torch всё равно идёт
+# в обход. Гасим попытки один раз: на скорость не влияет, зато лог чистый.
+try:
+    torch.backends.nnpack.set_flags(False)
+except (AttributeError, RuntimeError):  # в этой сборке torch флага может не быть
+    pass
+
 
 def _avx2_available() -> bool:
     """Есть ли у CPU инструкции AVX2.
