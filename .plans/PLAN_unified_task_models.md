@@ -40,3 +40,21 @@ full saved embedding/OCR quality comparison and Whisper fixture, then mark PR re
 merge main and fast-forward clean home/local checkouts. Preserve original local ignored
 .env/models under asr-gigaam, ocr and embedder when migrating; no auth reads.
 Do not claim deployment or quality verification complete until observed.
+
+## Resumed home check, 2026-10-08
+
+After human restored host, all six image tags existed (including E5). Fast-forwarded
+home to 1fc6f51, resumed builds from current code. Root lightweight environment
+restored locally; 51 tests passed again. Rapid real auto first startup and offline
+restart passed with two blank OCR pages and matching weight metadata. E5 real CPU
+HTTP inference with WORKERS=2 passed, both worker PIDs observed. All four new
+volumes validate successfully via model prepare CLIs; interrupted Whisper copy
+repaired from read-only original bundle and owner set to 10001.
+
+During bounded Whisper CPU test and image builds Docker reported unexpected EOF,
+then every home exec session returned 255. SSH banner and publickey authorization
+work; even /usr/bin/true and uptime fail, SFTP closes immediately. No new model
+loads after detecting this failure. Human asked about host restart and Windows
+disk space (Linux virtual disk reports plenty of free space). USER/Whisper final
+CPU inference, final current-source images, GPU deployment/parity and main merge
+remain open. Original GPU services were healthy before this second host failure.

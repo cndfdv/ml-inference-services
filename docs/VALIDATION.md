@@ -89,9 +89,9 @@ cd /home/knyze/ml-inference-services
 bash scripts/compose.sh --mode wsl config --quiet
 python3 scripts/smoke.py > artifacts/smoke.json
 # Для quality используйте отдельное окружение с лёгкими зависимостями:
-python3 -m venv .venv-check
-.venv-check/bin/pip install -r requirements-dev.txt
-.venv-check/bin/python scripts/check_quality.py \
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/python scripts/check_quality.py \
   --benchmark /home/knyze/russian-embedding-benchmark \
   --ocr-root /home/knyze/russian-ocr-benchmark > artifacts/quality.json
 
@@ -127,10 +127,17 @@ GigaAM и EasyOCR прошли реальный запуск, model-specific hea
 первый проверочный скрипт затем выявил ошибку своего import path, которая исправлена.
 Повторная транскрипция ещё не подтверждена.
 
+После восстановления home подтверждены: E5 CPU HTTP-инференс с двумя процессами
+(оба PID наблюдались), автоматическое скачивание RapidOCR при первом старте,
+реальное распознавание пакета из двух пустых страниц и повторный offline restart
+с совпадающими SHA-256. Все четыре отдельных volumes проверены по манифестам;
+прерванная копия Whisper восстановлена из исходного bundle.
+
 **Операционная проверка не завершена.** При финальной сборке E5 и повторных
 проверках home системные команды `bash` и `docker` завершились с `SIGBUS`,
-после чего SSH-доступ перестал работать. Завершение образа E5, первый/кешированный
-старт RapidOCR, CPU-инференс/два workers и GPU-проверки новых контейнеров требуют
+после чего SSH-доступ перестал работать. После повторного запуска хоста снова оборвались Docker/SSH-сеансы.
+Whisper и USER CPU-инференс, окончание пересборки из последнего кода и
+GPU-проверки новых контейнеров требуют
 восстановления хоста. Причина системной ошибки пока не установлена.
 Результаты исходных моделей выше не следует считать проверкой новых контейнеров.
 
