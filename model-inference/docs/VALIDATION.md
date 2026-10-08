@@ -13,6 +13,9 @@ Docker 29.8.1, Compose 5.5.1. GPU доступен через `/dev/dxg` и read
   `/v1/models` сообщает `cuda` и CUDA Execution Provider для ONNX.
 - `scripts/smoke.py`: явные батчи, нормализованные векторы ожидаемой размерности,
   по 16 HTTP-запросов с восемью клиентами к каждому эмбеддеру, пакет пустых OCR-страниц.
+- После переноса в Git checkout повторный smoke прошёл. Реальный multipart OCR
+  вернул 14 строк с geometry/confidence; Whisper file batch из двух JFK-записей
+  вернул две одинаковые непустые расшифровки. Проверки GitHub Actions прошли.
 - Реальные CPU backend-проверки всех четырёх моделей в контейнерах:
   `scripts/check_devices.py`. На CPU/GPU одинаковы ревизии, SHA-256 весов,
   preprocessing, precision и contract fingerprint.
