@@ -102,10 +102,6 @@ def create_app(settings=None, backend_factory=None):
     async def queue_full(_, __):
         return JSONResponse({"detail": "inference queue is full"}, status_code=429)
 
-    def check_route_model(route_model, allowed):
-        if route_model not in allowed or settings.model_id != route_model:
-            raise HTTPException(404, "model route does not match this service")
-
     def check_role(role):
         if role not in {"query", "passage"}:
             raise HTTPException(422, "role must be query or passage")
@@ -147,9 +143,8 @@ def create_app(settings=None, backend_factory=None):
             raise HTTPException(503, "model is not ready")
         return {"status": "ready"}
 
-    @app.get("/{route_model}/health")
-    async def model_health(route_model: str):
-        check_route_model(route_model, {settings.model_id})
+    @app.get("/whisper-large-v3/health")
+    async def model_health():
         return {
             "status": "ok",
             "model": settings.model_id,
@@ -181,7 +176,6 @@ def create_app(settings=None, backend_factory=None):
         language: str | None = Form("ru"),
         task: str = Form("transcribe"),
     ):
-        check_route_model("whisper-large-v3", {"whisper-large-v3"})
         result = (await transcribe_files([file], language, task))[0]
         return {**result, "metadata": await asyncio.to_thread(app.state.backend.metadata)}
 
@@ -191,7 +185,6 @@ def create_app(settings=None, backend_factory=None):
         language: str | None = Form("ru"),
         task: str = Form("transcribe"),
     ):
-        check_route_model("whisper-large-v3", {"whisper-large-v3"})
         if not files or len(files) > settings.max_request_items:
             raise HTTPException(413, "files must contain between 1 and the configured maximum")
         results = await transcribe_files(files, language, task)

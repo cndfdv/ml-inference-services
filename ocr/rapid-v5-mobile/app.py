@@ -176,10 +176,6 @@ def create_app(settings=None, backend_factory=None):
     async def queue_full(_, __):
         return JSONResponse({"detail": "inference queue is full"}, status_code=429)
 
-    def check_route_model(route_model, allowed):
-        if route_model not in allowed or settings.model_id != route_model:
-            raise HTTPException(404, "model route does not match this service")
-
     def check_role(role):
         if role not in {"query", "passage"}:
             raise HTTPException(422, "role must be query or passage")
@@ -221,9 +217,8 @@ def create_app(settings=None, backend_factory=None):
             raise HTTPException(503, "model is not ready")
         return {"status": "ready"}
 
-    @app.get("/{route_model}/health")
-    async def model_health(route_model: str):
-        check_route_model(route_model, {settings.model_id})
+    @app.get("/rapid-v5-mobile/health")
+    async def model_health():
         return {
             "status": "ok",
             "model": settings.model_id,
@@ -271,14 +266,12 @@ def create_app(settings=None, backend_factory=None):
 
     @app.post("/rapid-v5-mobile/ocr/batch")
     async def ocr_batch(body: OCRBody):
-        check_route_model("rapid-v5-mobile", {"rapid-v5-mobile"})
         return await validate_ocr_batch(body)
 
     @app.post("/rapid-v5-mobile/ocr")
     async def ocr_file(
         file: UploadFile = File(...),
     ):
-        check_route_model("rapid-v5-mobile", {"rapid-v5-mobile"})
         raw = await file.read(settings.max_request_body_bytes + 1)
         await file.close()
         if len(raw) > settings.max_request_body_bytes:

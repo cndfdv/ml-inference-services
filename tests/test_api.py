@@ -44,8 +44,8 @@ def png_bytes(size=(4, 3)):
 
 def test_each_application_registers_only_its_model_inference_routes():
     models = {
-        "e5-small": ("/{route_model}/embed",),
-        "user-bge-m3": ("/{route_model}/embed",),
+        "e5-small": ("/e5-small/embed",),
+        "user-bge-m3": ("/user-bge-m3/embed",),
         "rapid-v5-mobile": ("/rapid-v5-mobile/ocr", "/rapid-v5-mobile/ocr/batch"),
         "whisper-large-v3": (
             "/whisper-large-v3/transcribe",
@@ -58,6 +58,9 @@ def test_each_application_registers_only_its_model_inference_routes():
         app = service.app.create_app(settings, lambda _: FakeBackend(model_id))
         paths = {route.path for route in app.routes}
         assert set(expected) <= paths
+        assert f"/{model_id}/health" in paths
+        with TestClient(app) as health_client:
+            assert health_client.get(f"/{model_id}/health").json()["model"] == model_id
         assert app.title == {
             "e5-small": "E5 small embedding service",
             "user-bge-m3": "USER BGE M3 embedding service",

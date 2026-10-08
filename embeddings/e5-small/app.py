@@ -108,10 +108,6 @@ def create_app(settings=None, backend_factory=None):
     async def queue_full(_, __):
         return JSONResponse({"detail": "inference queue is full"}, status_code=429)
 
-    def check_route_model(route_model, allowed):
-        if route_model not in allowed or settings.model_id != route_model:
-            raise HTTPException(404, "model route does not match this service")
-
     def check_role(role):
         if role not in {"query", "passage"}:
             raise HTTPException(422, "role must be query or passage")
@@ -153,9 +149,8 @@ def create_app(settings=None, backend_factory=None):
             raise HTTPException(503, "model is not ready")
         return {"status": "ready"}
 
-    @app.get("/{route_model}/health")
-    async def model_health(route_model: str):
-        check_route_model(route_model, {settings.model_id})
+    @app.get("/e5-small/health")
+    async def model_health():
         return {
             "status": "ok",
             "model": settings.model_id,
@@ -181,9 +176,8 @@ def create_app(settings=None, backend_factory=None):
             ],
         }
 
-    @app.post("/{route_model}/embed")
-    async def embeddings(route_model: str, body: EmbeddingBody):
-        check_route_model(route_model, {"e5-small", "user-bge-m3"})
+    @app.post("/e5-small/embed")
+    async def embeddings(body: EmbeddingBody):
         check_role(body.role)
         check_texts(body.texts)
         values = await submit([{"text": text, "role": body.role} for text in body.texts])
