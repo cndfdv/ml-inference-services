@@ -48,3 +48,32 @@ def test_whisper_item_validation_and_decode_limits():
     import pytest
     with pytest.raises(ValueError, match="maximum byte size"):
         whisper.decode_whisper_item(b"x" * 11, max_bytes=10, max_duration_s=2, decoder=decoder)
+
+
+def test_whisper_rejects_overlong_frame_before_materializing_it():
+    import pytest
+    whisper = importlib.import_module(load_service("whisper-large-v3").__name__ + ".backend")
+
+    class TooLongFrame:
+        samples = 16001
+
+        def to_ndarray(self):
+            pytest.fail("overlong frame must be rejected before allocation")
+
+    with pytest.raises(whisper.AudioDurationExceeded, match="duration exceeds"):
+        whisper._read_bounded_audio_frames([TooLongFrame()], max_samples=16000)
+
+
+def test_whisper_decode_errors_remain_client_validation_errors():
+    import pytest
+    whisper = importlib.import_module(load_service("whisper-large-v3").__name__ + ".backend")
+    for error, expected in (
+        (whisper.AudioDurationExceeded("too long"), "maximum of 2 seconds"),
+        (RuntimeError("invalid audio container"), "could not be decoded"),
+        (ValueError("audio contains no samples"), "contains no samples"),
+    ):
+        def decoder(stream, sampling_rate, error=error):
+            raise error
+
+        with pytest.raises(ValueError, match=expected):
+            whisper.decode_whisper_item(b"encoded", max_bytes=10, max_duration_s=2, decoder=decoder)

@@ -74,6 +74,10 @@ def _metadata(
     }
 
 
+class AudioDurationExceeded(ValueError):
+    """Decoded audio exceeds the configured duration before materialization."""
+
+
 def _read_bounded_audio_frames(frames, max_samples: int):
     """Collect resampled s16 frames, rejecting an over-limit frame before conversion."""
     raw_buffer = io.BytesIO()

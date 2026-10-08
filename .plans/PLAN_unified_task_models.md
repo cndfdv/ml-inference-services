@@ -58,3 +58,22 @@ loads after detecting this failure. Human asked about host restart and Windows
 disk space (Linux virtual disk reports plenty of free space). USER/Whisper final
 CPU inference, final current-source images, GPU deployment/parity and main merge
 remain open. Original GPU services were healthy before this second host failure.
+
+## Source publication gate, latest user objective
+
+Latest explicit goal: finish the code and publish it in GitHub main. Source delivery
+can complete independently of unavailable home operations. Preserve and document
+all remaining runtime checks; do not claim them done.
+
+Final read-only audit compared all neural operations and four lock entries against
+origin/main: pins/operations unchanged; legacy backends byte-identical, USER adds
+CUDA DLL preloading. Restored lost AudioDurationExceeded ValueError subclass and
+added allocation-limit/decoder-error/HTTP-422 regressions. 54 tests passed twice
+(including independent auditor); review verdict GO. Local make config succeeded
+for CPU/GPU/WSL using a checksum-verified official Compose 5.5.1 in an isolated
+temporary Docker configuration. Publish final source after current-head CI passes,
+merge PR #2 into main and safely fast-forward clean local user checkout.
+
+Home exec and SFTP still fail after successful SSH authorization. Final current-source
+image execution, USER/Whisper CPU audio inference, and new GPU parity/deployment
+are operational follow-up gaps, not claims of this source publication.

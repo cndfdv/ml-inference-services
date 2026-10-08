@@ -226,3 +226,23 @@ def test_streamed_multipart_limit_returns_413_before_inference():
             response = c.post(route, content=iter([payload[:160], payload[160:]]),
                               headers={"content-type": "multipart/form-data; boundary=fixture"})
             assert response.status_code == 413
+
+
+def test_whisper_audio_duration_error_is_422_through_real_validation_backend():
+    import importlib
+    service = load_service("whisper-large-v3")
+    whisper = importlib.import_module(service.__name__ + ".backend")
+
+    class BoundedBackend(FakeBackend):
+        def infer(self, items):
+            def decoder(stream, sampling_rate):
+                raise whisper.AudioDurationExceeded("too long")
+            return [whisper.decode_whisper_item(item, max_bytes=10, max_duration_s=2, decoder=decoder)
+                    for item in items]
+
+    app = service.app.create_app(service.settings.Settings(device="cpu"),
+                                 lambda _: BoundedBackend("whisper-large-v3"))
+    with TestClient(app) as c:
+        response = c.post("/whisper-large-v3/transcribe", files={"file": ("sample.wav", b"encoded", "audio/wav")})
+        assert response.status_code == 422
+        assert "maximum of 2 seconds" in response.json()["detail"]
