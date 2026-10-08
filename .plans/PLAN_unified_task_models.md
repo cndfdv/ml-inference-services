@@ -77,3 +77,26 @@ merge PR #2 into main and safely fast-forward clean local user checkout.
 Home exec and SFTP still fail after successful SSH authorization. Final current-source
 image execution, USER/Whisper CPU audio inference, and new GPU parity/deployment
 are operational follow-up gaps, not claims of this source publication.
+
+## Source delivered and home resumed, 2026-10-08
+
+PR #2 merged into main as d9f552a; the main GitHub Actions run 37834592505
+passed. Main's source tree matches the independently audited e7f77a head.
+The user's clean local checkout was fast-forwarded; ignored legacy settings,
+weights and manual fixtures were preserved or moved to a sibling local backup.
+
+After the user restored home, fast-forwarded its clean checkout to the same main
+commit. Existing four GPU containers were healthy, still using the previous
+aggregate image. Final E5 build required downloading/installing the large
+PyTorch/CUDA layer. SSH dropped again; a subsequent short command succeeded.
+Started a detached, sequential six-image build with per-image logs and state in
+ignored artifacts so an SSH disconnect alone would not cancel it.
+
+WSL uptime subsequently reset to two minutes. The detached build was alive and
+reached E5 dependency installation, but home execution failed again afterwards.
+The VPS and its reverse port 2222 remain accessible. No final build/deployment
+success was observed. No intentional stop of old or unrelated services occurred.
+Requested physical Windows disk space and restart details; root cause remains
+unconfirmed. Prepared a detached verification helper, but did not launch it.
+Code/main objective is delivered; final independent GPU deployment and parity
+remain an explicitly unverified operational follow-up.
