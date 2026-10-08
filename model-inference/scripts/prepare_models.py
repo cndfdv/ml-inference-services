@@ -150,6 +150,7 @@ def export_user(source: Path, dest: Path, make_int8: bool):
             "sentence_embedding": {0: "batch"},
         },
         opset_version=17,
+        dynamo=False,
         do_constant_folding=True,
     )
     if make_int8:

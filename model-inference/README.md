@@ -29,6 +29,7 @@ bash scripts/compose.sh build e5-small
 bash scripts/compose.sh run --rm --no-deps --user "$(id -u):$(id -g)" \
   -e HF_HUB_OFFLINE=0 -e TRANSFORMERS_OFFLINE=0 \
   -e HF_HOME=/models/.hf-cache \
+  -e USER=inference \
   -v "$PWD/models:/models:rw" \
   e5-small python scripts/prepare_models.py --output /models
 bash scripts/compose.sh up -d
