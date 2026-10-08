@@ -1,64 +1,130 @@
 # ML-сервисы
 
-Набор автономных inference-сервисов. Исходные CPU-сервисы ниже используют общую архитектуру:
-FastAPI + один поток-воркер с очередью, ленивая загрузка модели и **выгрузка из
-RAM по простою**, вся конфигурация в `.env` каждого сервиса.
+Один репозиторий: **задача → модель → самостоятельный контейнер**.
+У каждой модели собственные HTTP-приложение, код инференса, очередь,
+настройки, Dockerfile и зависимости. Контейнеры общаются с потребителями по HTTP.
 
-| Сервис | Папка | Порт | Что делает | Бэкенд |
-|--------|-------|------|-----------|--------|
-| ASR | [`asr-gigaam/`](asr-gigaam/) | 8000 | речь → текст (`POST /transcribe`) | GigaAM, onnx-asr |
-| Эмбеддер | [`embedder/`](embedder/) | 8001 | текст → векторы (`POST /embed`) | sentence-transformers |
-| OCR | [`ocr/`](ocr/) | 8002 | изображение/PDF → текст (`POST /ocr`) | EasyOCR (torch) |
-
-У каждого сервиса свой `README.md`, `docs/` и автономный `docker-compose.yml` —
-их можно поднимать по отдельности. Корневой `docker-compose.yml` собирает все три
-вместе.
-
-## Запуск всех сразу
-
-```bash
-# 1. настройки: в каждой папке скопируй .env из шаблона
-cp asr-gigaam/.env.example asr-gigaam/.env
-cp embedder/.env.example   embedder/.env
-cp ocr/.env.example        ocr/.env
-# при необходимости впиши в .env свой HF_TOKEN (для приватных/gated-моделей
-# HuggingFace и снятия лимитов загрузки) — .env в gitignore, наружу не уйдёт
-
-# 2. (опционально) прогреть кеши моделей заранее, чтобы не качать на первом запросе
-docker compose --profile prepare run --rm asr-prepare
-docker compose --profile prepare run --rm embedder-prepare
-docker compose --profile prepare run --rm ocr-prepare
-
-# 3. поднять все три
-docker compose up -d --build
+```text
+asr/
+  gigaam/               GigaAM v3 CTC, CPU
+  whisper/              Whisper large-v3, CPU / GPU
+embeddings/
+  e5-small/             multilingual-e5-small, CPU / GPU
+  user-bge-m3/          deepvk/USER-bge-m3, CPU / GPU
+ocr/
+  easyocr/              EasyOCR ru + en, CPU
+  rapid-v5-mobile/      PP-OCRv5 mobile Cyrillic, CPU / GPU
+scripts/                запуск и проверки контейнеров
+tests/                 HTTP, очереди, подготовка весов
+docs/                  миграция, источники, результаты проверок
 ```
 
-Один сервис: `docker compose up -d --build embedder`.
+## Модели и API
 
-Порты на хосте по умолчанию `8000/8001/8002`, переопределяются переменными
-`ASR_PORT` / `EMBEDDER_PORT` / `OCR_PORT` (например в корневом `.env` рядом с этим
-compose или в окружении).
+| Задача | Модель и инструкция | Режим | Порт | HTTP-ручка |
+| --- | --- | --- | ---: | --- |
+| ASR | [GigaAM](asr/gigaam/README.md) | CPU | 8000 | `POST /gigaam/transcribe` |
+| ASR | [Whisper large-v3](asr/whisper/README.md) | CPU / CUDA | 18104 | `POST /whisper-large-v3/transcribe` |
+| Эмбеддинги | [E5-small](embeddings/e5-small/README.md) | CPU / CUDA | 18101 | `POST /e5-small/embed` |
+| Эмбеддинги | [USER-bge-m3](embeddings/user-bge-m3/README.md) | CPU / CUDA | 18102 | `POST /user-bge-m3/embed` |
+| OCR | [EasyOCR](ocr/easyocr/README.md) | CPU | 8002 | `POST /easyocr/ocr` |
+| OCR | [RapidOCR v5 mobile](ocr/rapid-v5-mobile/README.md) | CPU / CUDA | 18103 | `POST /rapid-v5-mobile/ocr` |
 
-Проверка:
+Порты хоста по умолчанию доступны на `127.0.0.1`. Swagger каждого контейнера —
+`http://127.0.0.1:<порт>/docs`. Все контейнеры слушают внутренний порт 8000.
+
+## Быстрый запуск
+
+Нужны Docker Engine и Compose **2.24+**. Для CUDA — NVIDIA Container Toolkit
+или WSL2 с `/dev/dxg` и `/usr/lib/wsl`. На CPU GPU-инструменты не нужны.
 
 ```bash
-curl http://localhost:8000/health   # asr
-curl http://localhost:8001/health   # embedder
-curl http://localhost:8002/health   # ocr
+git clone https://github.com/cndfdv/ml-inference-services.git
+cd ml-inference-services
+
+# Одна модель. Путь соответствует папке в репозитории.
+bash scripts/run.sh embeddings/e5-small --device cuda --workers 1
+bash scripts/run.sh asr/whisper --device cpu --workers 1
+bash scripts/run.sh asr/gigaam --workers 2
+
+# Все модели одной задачи.
+bash scripts/compose.sh --mode cpu --profile embeddings up -d --build
+bash scripts/compose.sh --mode wsl --profile ocr up -d --build
+
+# Все шесть моделей на CPU.
+bash scripts/compose.sh --mode cpu --profile all up -d --build
 ```
 
-Здоровье каждого контейнера отслеживает healthcheck (`GET /health`, модель не
-поднимает). Общие принципы (очередь, cold start, выгрузка по простою, `--workers
-1`) — в README и `docs/` каждого сервиса.
+Без `.env` работают значения по умолчанию. Для постоянных настроек скопируйте
+`.env.example` в `.env` в корне; индивидуальная `.env` в папке модели тоже поддержана.
+`run.sh` задаёт устройство и workers на один запуск; для следующего общего `up`
+сохраните соответствующие `*_DEVICE` и `*_WORKERS` в `.env`.
 
-## Закреплённые модели на CPU и GPU
+`--mode auto` выбирает WSL, NVIDIA GPU или CPU по доступному оборудованию.
+`run.sh --device cuda` требует GPU и не переключается на CPU. Для NVIDIA Toolkit
+используйте `--mode gpu`, для native Docker в WSL2 — `--mode wsl`.
 
-Каталог [`model-inference/`](model-inference/) содержит отдельный Compose-проект:
-multilingual-e5-small, deepvk/USER-bge-m3, RapidOCR PP-OCRv5 mobile Cyrillic
-и Whisper large-v3. У каждой модели свои HTTP-ручки, CPU/GPU-режим и число
-процессов-воркеров. Порты: 18101–18104. Поддержаны NVIDIA Container Toolkit
-и native Docker в WSL2. Веса подготовлены заранее, startup проверяет SHA-256.
+Модели выбираются профилями `asr`, `embeddings`, `ocr`, `all` или именем сервиса.
+Обычный `docker compose up` без выбора профиля ничего не запускает.
 
-[Запуск, API и батчи](model-inference/README.md) ·
-[Проверки CPU/GPU и качества](model-inference/docs/VALIDATION.md) ·
-[Источники моделей](model-inference/docs/MODELS.md).
+## Веса при первом запуске
+
+E5, USER, RapidOCR и Whisper **сами готовят недостающие веса при старте**,
+до запуска HTTP-воркеров. Закреплены checkpoint и обработка входов; каждый файл
+проверяется по SHA-256. Повторный запуск использует готовые веса.
+
+Веса сохраняются в отдельном Docker volume для каждой модели: например,
+`ml-services-e5-small-weights`. Они не входят в Git или Docker-образ.
+Первое скачивание крупных моделей и экспорт USER в ONNX могут занять несколько
+минут. Проверяйте `/readyz` перед отправкой запросов:
+
+```bash
+bash scripts/compose.sh logs -f user-bge-m3
+curl http://127.0.0.1:18102/readyz
+```
+
+`*_PREPARE_MODE=offline` запрещает скачивание отсутствующего bundle.
+Повреждённый или несовместимый существующий bundle вызывает ошибку; сервис
+не подменяет его другой моделью. GigaAM и EasyOCR сохраняют прежнюю CPU-схему:
+скачивание при первом запросе, выгрузка из RAM по простою; их можно подготовить
+заранее командой из README модели.
+
+## Батчи и workers
+
+E5 и USER объединяют запросы в микробатчи. RapidOCR принимает пакет страниц
+и распознаёт найденные строки батчами. Whisper принимает пакет файлов и
+обрабатывает их последовательно внутри воркера. GigaAM распознаёт батчи
+30-секундных окон; EasyOCR обрабатывает страницы последовательно.
+
+Каждый процесс-воркер держит собственную модель и очередь. По умолчанию — один.
+Сначала подберите размер батча, затем увеличивайте workers по доступной памяти.
+Четыре FP32-модели вместе занимают почти всю 16 GB VRAM после полной нагрузки.
+
+## Подключение своих сервисов
+
+В Docker-сети `model-inference` адреса имеют вид
+`http://e5-small:8000/e5-small/embed` или
+`http://whisper-large-v3:8000/whisper-large-v3/transcribe`.
+Подключите контейнер потребителя к этой сети как к external network.
+
+На `home` рабочий checkout — `/home/knyze/ml-inference-services`.
+Для доступа с Mac используйте SSH-туннель:
+
+```bash
+ssh -N -L 18101:127.0.0.1:18101 -L 18102:127.0.0.1:18102 \
+  -L 18103:127.0.0.1:18103 -L 18104:127.0.0.1:18104 home
+```
+
+## Разработка и проверки
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements-dev.txt
+make test PYTHON=.venv/bin/python
+make config
+make smoke PYTHON=.venv/bin/python   # четыре запущенных E5/USER/Rapid/Whisper
+```
+
+[Переход со старой структуры](docs/MIGRATION.md) ·
+[Модели, ревизии и лицензии](docs/MODELS.md) ·
+[Проверки CPU/GPU и качества](docs/VALIDATION.md).

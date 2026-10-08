@@ -1,9 +1,0 @@
-data/
-models/
-.env
-.git
-__pycache__/
-*.pyc
-venv/
-.venv/
-README.md

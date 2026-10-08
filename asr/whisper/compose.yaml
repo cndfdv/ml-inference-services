@@ -1,0 +1,32 @@
+services:
+  whisper-large-v3:
+    image: ml-services-whisper-large-v3:local
+    build: .
+    init: true
+    restart: unless-stopped
+    profiles: [asr, whisper-large-v3, all]
+    environment:
+      MODEL_ID: "whisper-large-v3"
+      MODEL_DIR: "/models"
+      DEVICE: "${WHISPER_DEVICE:-cpu}"
+      WORKERS: "${WHISPER_WORKERS:-1}"
+      PREPARE_MODE: "${WHISPER_PREPARE_MODE:-auto}"
+      CPU_THREADS: "${CPU_THREADS:-4}"
+      MAX_BATCH_SIZE: "${WHISPER_BATCH_SIZE:-1}"
+      MAX_BATCH_TOKENS: "${MAX_BATCH_TOKENS:-8192}"
+      BATCH_WAIT_MS: "${BATCH_WAIT_MS:-10}"
+      MAX_QUEUE_ITEMS: "${MAX_QUEUE_ITEMS:-256}"
+      REQUEST_TIMEOUT_S: "${REQUEST_TIMEOUT_S:-600}"
+      MAX_REQUEST_ITEMS: "${MAX_REQUEST_ITEMS:-64}"
+      MAX_REQUEST_BODY_BYTES: "${MAX_REQUEST_BODY_BYTES:-67108864}"
+      MAX_AUDIO_DURATION_S: "${MAX_AUDIO_DURATION_S:-600}"
+      MAX_AUDIO_BYTES: "${MAX_AUDIO_BYTES:-67108864}"
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${WHISPER_PORT:-18104}:8000"]
+    volumes: [whisper-large-v3-weights:/models]
+    networks: [model-inference]
+volumes:
+  whisper-large-v3-weights:
+    name: ml-services-whisper-large-v3-weights
+networks:
+  model-inference:
+    name: model-inference

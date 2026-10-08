@@ -1,0 +1,10 @@
+{
+  "user-bge-m3": {
+    "revision": "0cc6cfe48e260fb0474c753087a69369e88709ae",
+    "weights": "deepvk/USER-bge-m3",
+    "contract_fingerprint": "user-bge-m3:cls-l2:no-prefix:8192:1024:opset17",
+    "source": "https://huggingface.co/deepvk/USER-bge-m3",
+    "fp32_graph": "cls-op17-fp32.onnx",
+    "int8_graph": "cls-op17-int8.onnx"
+  }
+}

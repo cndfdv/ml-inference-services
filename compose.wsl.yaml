@@ -1,0 +1,26 @@
+services:
+  e5-small:
+    environment:
+      DEVICE: ${E5_DEVICE:-cuda}
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib
+    devices: ["/dev/dxg:/dev/dxg"]
+    volumes: ["/usr/lib/wsl:/usr/lib/wsl:ro"]
+  user-bge-m3:
+    environment:
+      DEVICE: ${USER_DEVICE:-cuda}
+      USER_VARIANT: ${USER_CPU_VARIANT:-fp32}
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib
+    devices: ["/dev/dxg:/dev/dxg"]
+    volumes: ["/usr/lib/wsl:/usr/lib/wsl:ro"]
+  rapid-v5-mobile:
+    environment:
+      DEVICE: ${OCR_DEVICE:-cuda}
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib
+    devices: ["/dev/dxg:/dev/dxg"]
+    volumes: ["/usr/lib/wsl:/usr/lib/wsl:ro"]
+  whisper-large-v3:
+    environment:
+      DEVICE: ${WHISPER_DEVICE:-cuda}
+      LD_LIBRARY_PATH: /usr/lib/wsl/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib
+    devices: ["/dev/dxg:/dev/dxg"]
+    volumes: ["/usr/lib/wsl:/usr/lib/wsl:ro"]

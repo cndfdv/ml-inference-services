@@ -1,0 +1,8 @@
+name: model-inference
+include:
+  - embeddings/e5-small/compose.yaml
+  - embeddings/user-bge-m3/compose.yaml
+  - ocr/rapid-v5-mobile/compose.yaml
+  - asr/whisper/compose.yaml
+  - asr/gigaam/docker-compose.yml
+  - ocr/easyocr/docker-compose.yml

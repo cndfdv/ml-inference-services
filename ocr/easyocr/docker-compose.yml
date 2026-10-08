@@ -1,0 +1,74 @@
+services:
+  easyocr:
+    image: ml-services-easyocr:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      EASYOCR_WORKERS: "${EASYOCR_WORKERS:-1}"
+      EASYOCR_OCR_LANGS: "${EASYOCR_OCR_LANGS:-${OCR_LANGS:-ru,en}}"
+      EASYOCR_MODULE_PATH: /app/models
+      EASYOCR_PARAGRAPH: "${EASYOCR_PARAGRAPH:-${PARAGRAPH:-false}}"
+      EASYOCR_QUANTIZE: "${EASYOCR_QUANTIZE:-${QUANTIZE:-true}}"
+      EASYOCR_PDF_DPI: "${EASYOCR_PDF_DPI:-${PDF_DPI:-150}}"
+      EASYOCR_TMP_DIR: /app/tmp
+      EASYOCR_IDLE_TTL: "${EASYOCR_IDLE_TTL:-${IDLE_TTL:-300}}"
+      EASYOCR_REQUEST_TIMEOUT: "${EASYOCR_REQUEST_TIMEOUT:-${REQUEST_TIMEOUT:-300}}"
+      EASYOCR_OMP_NUM_THREADS: "${EASYOCR_OMP_NUM_THREADS:-4}"
+      EASYOCR_PORT: "${EASYOCR_PORT:-8002}"
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${EASYOCR_PORT:-8002}:8000"
+    volumes:
+      - easyocr-models:/app/models
+      - easyocr-tmp:/app/tmp
+    networks:
+      - model-inference
+    profiles: ["ocr", "easyocr", "all"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/easyocr/health', timeout=5)
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    restart: unless-stopped
+
+  easyocr-prepare:
+    image: ml-services-easyocr:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      EASYOCR_WORKERS: "${EASYOCR_WORKERS:-1}"
+      EASYOCR_OCR_LANGS: "${EASYOCR_OCR_LANGS:-${OCR_LANGS:-ru,en}}"
+      EASYOCR_MODULE_PATH: /app/models
+      EASYOCR_PARAGRAPH: "${EASYOCR_PARAGRAPH:-${PARAGRAPH:-false}}"
+      EASYOCR_QUANTIZE: "${EASYOCR_QUANTIZE:-${QUANTIZE:-true}}"
+      EASYOCR_PDF_DPI: "${EASYOCR_PDF_DPI:-${PDF_DPI:-150}}"
+      EASYOCR_TMP_DIR: /app/tmp
+      EASYOCR_IDLE_TTL: "${EASYOCR_IDLE_TTL:-${IDLE_TTL:-300}}"
+      EASYOCR_REQUEST_TIMEOUT: "${EASYOCR_REQUEST_TIMEOUT:-${REQUEST_TIMEOUT:-300}}"
+      EASYOCR_OMP_NUM_THREADS: "${EASYOCR_OMP_NUM_THREADS:-4}"
+    volumes:
+      - easyocr-models:/app/models
+    command: ["python", "download_model.py"]
+    profiles: ["prepare"]
+
+volumes:
+  easyocr-models:
+    name: ml-services-easyocr-weights
+  easyocr-tmp:
+    name: ml-services-easyocr-tmp
+
+networks:
+  model-inference:
+    name: model-inference

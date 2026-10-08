@@ -1,0 +1,31 @@
+services:
+  user-bge-m3:
+    image: ml-services-user-bge-m3:local
+    build: .
+    init: true
+    restart: unless-stopped
+    profiles: [embeddings, user-bge-m3, all]
+    environment:
+      MODEL_ID: "user-bge-m3"
+      MODEL_DIR: "/models"
+      DEVICE: "${USER_DEVICE:-cpu}"
+      WORKERS: "${USER_WORKERS:-1}"
+      PREPARE_MODE: "${USER_PREPARE_MODE:-auto}"
+      CPU_THREADS: "${CPU_THREADS:-4}"
+      MAX_BATCH_SIZE: "${MAX_BATCH_SIZE:-16}"
+      MAX_BATCH_TOKENS: "${MAX_BATCH_TOKENS:-8192}"
+      BATCH_WAIT_MS: "${BATCH_WAIT_MS:-10}"
+      MAX_QUEUE_ITEMS: "${MAX_QUEUE_ITEMS:-256}"
+      REQUEST_TIMEOUT_S: "${REQUEST_TIMEOUT_S:-600}"
+      MAX_REQUEST_ITEMS: "${MAX_REQUEST_ITEMS:-64}"
+      MAX_REQUEST_BODY_BYTES: "${MAX_REQUEST_BODY_BYTES:-67108864}"
+      USER_VARIANT: "${USER_CPU_VARIANT:-fp32}"
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${USER_PORT:-18102}:8000"]
+    volumes: [user-bge-m3-weights:/models]
+    networks: [model-inference]
+volumes:
+  user-bge-m3-weights:
+    name: ml-services-user-bge-m3-weights
+networks:
+  model-inference:
+    name: model-inference

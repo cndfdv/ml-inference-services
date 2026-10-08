@@ -1,0 +1,76 @@
+services:
+  gigaam:
+    image: ml-services-gigaam:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GIGAAM_WORKERS: "${GIGAAM_WORKERS:-1}"
+      GIGAAM_MODEL_VERSION: "${GIGAAM_MODEL_VERSION:-${MODEL_VERSION:-gigaam-v3-ctc}}"
+      GIGAAM_HF_HOME: /app/models
+      HF_HOME: /app/models
+      GIGAAM_TMP_DIR: /app/tmp
+      GIGAAM_IDLE_TTL: "${GIGAAM_IDLE_TTL:-${IDLE_TTL:-60}}"
+      GIGAAM_REQUEST_TIMEOUT: "${GIGAAM_REQUEST_TIMEOUT:-${REQUEST_TIMEOUT:-3000}}"
+      GIGAAM_CHUNK_SEC: "${GIGAAM_CHUNK_SEC:-${CHUNK_SEC:-30}}"
+      GIGAAM_CHUNK_BATCH_SIZE: "${GIGAAM_CHUNK_BATCH_SIZE:-${CHUNK_BATCH_SIZE:-8}}"
+      GIGAAM_AUDIO_FILTERS: "${GIGAAM_AUDIO_FILTERS:-${AUDIO_FILTERS:-highpass=f=100,dynaudnorm}}"
+      GIGAAM_OMP_NUM_THREADS: "${GIGAAM_OMP_NUM_THREADS:-4}"
+      GIGAAM_PORT: "${GIGAAM_PORT:-8000}"
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${GIGAAM_PORT:-8000}:8000"
+    volumes:
+      - gigaam-models:/app/models
+      - gigaam-tmp:/app/tmp
+    networks:
+      - model-inference
+    profiles: ["asr", "gigaam", "all"]
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/gigaam/health', timeout=5)
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped
+
+  gigaam-prepare:
+    image: ml-services-gigaam:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      GIGAAM_WORKERS: "${GIGAAM_WORKERS:-1}"
+      GIGAAM_MODEL_VERSION: "${GIGAAM_MODEL_VERSION:-${MODEL_VERSION:-gigaam-v3-ctc}}"
+      GIGAAM_HF_HOME: /app/models
+      HF_HOME: /app/models
+      GIGAAM_TMP_DIR: /app/tmp
+      GIGAAM_IDLE_TTL: "${GIGAAM_IDLE_TTL:-${IDLE_TTL:-60}}"
+      GIGAAM_REQUEST_TIMEOUT: "${GIGAAM_REQUEST_TIMEOUT:-${REQUEST_TIMEOUT:-3000}}"
+      GIGAAM_CHUNK_SEC: "${GIGAAM_CHUNK_SEC:-${CHUNK_SEC:-30}}"
+      GIGAAM_CHUNK_BATCH_SIZE: "${GIGAAM_CHUNK_BATCH_SIZE:-${CHUNK_BATCH_SIZE:-8}}"
+      GIGAAM_AUDIO_FILTERS: "${GIGAAM_AUDIO_FILTERS:-${AUDIO_FILTERS:-highpass=f=100,dynaudnorm}}"
+      GIGAAM_OMP_NUM_THREADS: "${GIGAAM_OMP_NUM_THREADS:-4}"
+    volumes:
+      - gigaam-models:/app/models
+    command: ["python", "download_model.py"]
+    profiles: ["prepare"]
+
+volumes:
+  gigaam-models:
+    name: ml-services-gigaam-weights
+  gigaam-tmp:
+    name: ml-services-gigaam-tmp
+
+networks:
+  model-inference:
+    name: model-inference
