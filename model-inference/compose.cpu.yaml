@@ -1,0 +1,14 @@
+services:
+  e5-small:
+    environment:
+      DEVICE: cpu
+  user-bge-m3:
+    environment:
+      DEVICE: cpu
+      USER_VARIANT: ${USER_CPU_VARIANT:-fp32}
+  rapid-v5-mobile:
+    environment:
+      DEVICE: cpu
+  whisper-large-v3:
+    environment:
+      DEVICE: cpu

@@ -1,0 +1,13 @@
+.git
+.plans
+.docker-client
+.env
+.venv
+models
+artifacts
+__pycache__
+.pycache
+.pytest_cache
+tests
+docs
+*.log

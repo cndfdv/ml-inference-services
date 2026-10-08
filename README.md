@@ -1,6 +1,6 @@
 # ML-сервисы
 
-Набор автономных inference-сервисов на CPU. Общая архитектура у всех одинаковая:
+Набор автономных inference-сервисов. Исходные CPU-сервисы ниже используют общую архитектуру:
 FastAPI + один поток-воркер с очередью, ленивая загрузка модели и **выгрузка из
 RAM по простою**, вся конфигурация в `.env` каждого сервиса.
 
@@ -50,3 +50,15 @@ curl http://localhost:8002/health   # ocr
 Здоровье каждого контейнера отслеживает healthcheck (`GET /health`, модель не
 поднимает). Общие принципы (очередь, cold start, выгрузка по простою, `--workers
 1`) — в README и `docs/` каждого сервиса.
+
+## Закреплённые модели на CPU и GPU
+
+Каталог [`model-inference/`](model-inference/) содержит отдельный Compose-проект:
+multilingual-e5-small, deepvk/USER-bge-m3, RapidOCR PP-OCRv5 mobile Cyrillic
+и Whisper large-v3. У каждой модели свои HTTP-ручки, CPU/GPU-режим и число
+процессов-воркеров. Порты: 18101–18104. Поддержаны NVIDIA Container Toolkit
+и native Docker в WSL2. Веса подготовлены заранее, startup проверяет SHA-256.
+
+[Запуск, API и батчи](model-inference/README.md) ·
+[Проверки CPU/GPU и качества](model-inference/docs/VALIDATION.md) ·
+[Источники моделей](model-inference/docs/MODELS.md).
