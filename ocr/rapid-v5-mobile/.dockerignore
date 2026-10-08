@@ -1,0 +1,13 @@
+.env
+.env.*
+!.env.example
+models/
+weights/
+artifacts/
+tmp/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.log
+docs/
+README.md

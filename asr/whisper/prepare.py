@@ -1,0 +1,138 @@
+"""Prepare this service's pinned, checksum-manifested model bundle."""
+from __future__ import annotations
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import tempfile
+import urllib.request
+from pathlib import Path
+
+from .backend import LOCK_PATH, validate_manifest
+LOCK = json.loads(LOCK_PATH.read_text())
+MODEL_ID = "whisper-large-v3"
+
+def snapshot(
+    repo: str, revision: str, cache: Path | None, patterns: list[str] | None = None
+) -> Path:
+    if cache:
+        candidates = [cache / "snapshots" / revision]
+        candidates.extend(cache.glob(f"models--*/snapshots/{revision}"))
+        candidates.extend(cache.glob(f"**/snapshots/{revision}"))
+        if cache.name == revision:
+            candidates.append(cache)
+        for candidate in candidates:
+            if candidate.is_dir() and (candidate / "config.json").is_file():
+                return candidate
+    from huggingface_hub import snapshot_download
+
+    patterns = patterns or [
+        "config.json",
+        "*.safetensors",
+        "*.safetensors.index.json",
+        "pytorch_model*.bin",
+        "pytorch_model*.bin.index.json",
+        "tokenizer.json",
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        "added_tokens.json",
+        "vocab.txt",
+        "vocab.json",
+        "merges.txt",
+        "spiece.model",
+        "sentencepiece.bpe.model",
+    ]
+    return Path(snapshot_download(repo_id=repo, revision=revision, allow_patterns=patterns))
+
+def copy_whisper_snapshot(source: Path, destination: Path):
+    files = (
+        "model.bin",
+        "config.json",
+        "tokenizer.json",
+        "preprocessor_config.json",
+        "vocabulary.json",
+    )
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in files:
+        path = source / name
+        if not path.is_file():
+            raise FileNotFoundError(f"pinned Whisper snapshot is missing {name}: {source}")
+        shutil.copy2(path.resolve(), destination / name)
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+def manifest(model_id: str, root: Path):
+    entry = LOCK[model_id]
+    weights = entry["weights"]
+    files = {}
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.name != "manifest.json":
+            rel = path.relative_to(root).as_posix()
+            files[rel] = sha256(path)
+    data = {
+        "model_id": model_id,
+        "revision": entry["revision"],
+        "weights": weights,
+        "contract_fingerprint": entry["contract_fingerprint"],
+        "files": files,
+    }
+    target = root / "manifest.json"
+    temporary = root / ".manifest.json.tmp"
+    temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    os.replace(temporary, target)
+
+def prepare(output: Path, benchmark_cache: Path | None = None):
+    output.mkdir(parents=True, exist_ok=True)
+    target = output / MODEL_ID
+    if target.exists():
+        validate_manifest(output, MODEL_ID)
+        return target
+    entry = LOCK[MODEL_ID]
+    with tempfile.TemporaryDirectory(prefix=f"prepare-{MODEL_ID}-", dir=output) as tmp_name:
+        tmp = Path(tmp_name)
+        source = snapshot(entry["weights"], entry["revision"], benchmark_cache, patterns=["model.bin", "config.json", "tokenizer.json", "preprocessor_config.json", "vocabulary.json"])
+        copy_whisper_snapshot(source, tmp)
+        manifest(MODEL_ID, tmp)
+        for path in tmp.rglob("*"):
+            path.chmod(0o755 if path.is_dir() else 0o644)
+        tmp.chmod(0o755)
+        os.replace(tmp, target)
+    return target
+
+
+def ensure_prepared(settings):
+    """Reuse a valid bundle, prepare a missing bundle, or fail in offline mode."""
+    settings.validate()
+    if settings.model_id != MODEL_ID:
+        raise ValueError(f"this preparation module only supports {MODEL_ID}")
+    output = Path(settings.model_dir)
+    target = output / MODEL_ID
+    mode = os.getenv("PREPARE_MODE", "auto").lower()
+    if mode not in {"auto", "offline"}:
+        raise ValueError("PREPARE_MODE must be auto or offline")
+    if target.exists():
+        validate_manifest(output, MODEL_ID)
+        return target
+    if mode == "offline":
+        raise RuntimeError(f"prepared model bundle is missing: {target}")
+    prepared = prepare(output)
+    validate_manifest(output, MODEL_ID)
+    return prepared
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=Path, default=Path("/models"))
+    parser.add_argument("--benchmark-cache", type=Path)
+    args = parser.parse_args()
+    prepare(args.output, args.benchmark_cache)
+
+
+if __name__ == "__main__":
+    main()

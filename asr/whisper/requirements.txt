@@ -1,0 +1,15 @@
+fastapi==0.115.12
+pydantic==2.11.4
+uvicorn==0.34.2
+numpy==2.2.6
+python-multipart==0.0.20
+huggingface-hub==1.25.1
+faster-whisper==1.2.1
+ctranslate2==4.6.0
+av==15.1.0
+onnxruntime==1.21.0
+tokenizers==0.22.2
+nvidia-cublas-cu12==12.8.4.1
+nvidia-cudnn-cu12==9.10.2.21
+nvidia-cuda-runtime-cu12==12.8.90
+nvidia-cuda-nvrtc-cu12==12.8.93

@@ -1,25 +1,27 @@
-# Секреты и локальные настройки — наружу не коммитим
+# Local settings and authentication
 .env
 .env.*
 !.env.example
 .claude/
-
-# Артефакты моделей, кеши весов, временные файлы и данные
+.docker-client/
+compose.local.yaml
+# Weights, caches and evaluation artifacts
 models/
+weights/
+artifacts/
+.cache/
 tmp/
 data/
 onnx/
-
-# Тесты с тяжёлыми медиафайлами наружу не коммитим
-tests/
-
-# Python
+*.onnx
+*.safetensors
+*.bin
+# Python and tooling
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 venv/
-
-# Инструменты и мусор ОС
+.pytest_cache/
 .ruff_cache/
 .DS_Store

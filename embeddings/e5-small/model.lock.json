@@ -1,0 +1,8 @@
+{
+  "e5-small": {
+    "revision": "614241f622f53c4eeff9890bdc4f31cfecc418b3",
+    "weights": "intfloat/multilingual-e5-small",
+    "contract_fingerprint": "e5-small:masked-mean-l2:query-passage:512:384",
+    "source": "https://huggingface.co/intfloat/multilingual-e5-small"
+  }
+}

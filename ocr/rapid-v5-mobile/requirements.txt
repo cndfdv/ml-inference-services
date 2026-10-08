@@ -1,0 +1,14 @@
+fastapi==0.115.12
+pydantic==2.11.4
+uvicorn==0.34.2
+numpy==2.2.6
+python-multipart==0.0.20
+Pillow==11.2.1
+pypdfium2==4.30.0
+rapidocr==3.9.2
+onnxruntime-gpu==1.21.0
+opencv-python-headless==5.0.0.93
+nvidia-cublas-cu12==12.8.4.1
+nvidia-cudnn-cu12==9.10.2.21
+nvidia-cuda-runtime-cu12==12.8.90
+nvidia-cuda-nvrtc-cu12==12.8.93

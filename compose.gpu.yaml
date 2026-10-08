@@ -1,0 +1,42 @@
+services:
+  e5-small:
+    environment:
+      DEVICE: ${E5_DEVICE:-cuda}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  user-bge-m3:
+    environment:
+      DEVICE: ${USER_DEVICE:-cuda}
+      USER_VARIANT: ${USER_CPU_VARIANT:-fp32}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  rapid-v5-mobile:
+    environment:
+      DEVICE: ${OCR_DEVICE:-cuda}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  whisper-large-v3:
+    environment:
+      DEVICE: ${WHISPER_DEVICE:-cuda}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -1,0 +1,30 @@
+services:
+  e5-small:
+    image: ml-services-e5-small:local
+    build: .
+    init: true
+    restart: unless-stopped
+    profiles: [embeddings, e5-small, all]
+    environment:
+      MODEL_ID: "e5-small"
+      MODEL_DIR: "/models"
+      DEVICE: "${E5_DEVICE:-cpu}"
+      WORKERS: "${E5_WORKERS:-1}"
+      PREPARE_MODE: "${E5_PREPARE_MODE:-auto}"
+      CPU_THREADS: "${CPU_THREADS:-4}"
+      MAX_BATCH_SIZE: "${MAX_BATCH_SIZE:-16}"
+      MAX_BATCH_TOKENS: "${MAX_BATCH_TOKENS:-8192}"
+      BATCH_WAIT_MS: "${BATCH_WAIT_MS:-10}"
+      MAX_QUEUE_ITEMS: "${MAX_QUEUE_ITEMS:-256}"
+      REQUEST_TIMEOUT_S: "${REQUEST_TIMEOUT_S:-600}"
+      MAX_REQUEST_ITEMS: "${MAX_REQUEST_ITEMS:-64}"
+      MAX_REQUEST_BODY_BYTES: "${MAX_REQUEST_BODY_BYTES:-67108864}"
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${E5_PORT:-18101}:8000"]
+    volumes: [e5-small-weights:/models]
+    networks: [model-inference]
+volumes:
+  e5-small-weights:
+    name: ml-services-e5-small-weights
+networks:
+  model-inference:
+    name: model-inference
