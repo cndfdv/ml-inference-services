@@ -25,31 +25,21 @@ class _RequestBodyLimitMiddleware:
         if declared > self.max_body:
             await self._too_large(send)
             return
-        chunks = []
         total = 0
-        more_body = True
-        while more_body:
+
+        async def limited_receive():
+            nonlocal total
             message = await receive()
-            if message["type"] == "http.disconnect":
-                return
-            chunk = message.get("body", b"")
-            total += len(chunk)
-            if total > self.max_body:
-                await self._too_large(send)
-                return
-            chunks.append(chunk)
-            more_body = message.get("more_body", False)
-        body = b"".join(chunks)
-        sent = False
+            if message["type"] == "http.request":
+                total += len(message.get("body", b""))
+                if total > self.max_body:
+                    # FastAPI handles this HTTPException before inference starts.
+                    # Multipart parsing can spool files without buffering the
+                    # whole upload a second time in this middleware.
+                    raise HTTPException(413, "request body too large")
+            return message
 
-        async def replay_receive():
-            nonlocal sent
-            if sent:
-                return {"type": "http.request", "body": b"", "more_body": False}
-            sent = True
-            return {"type": "http.request", "body": body, "more_body": False}
-
-        await self.app(scope, replay_receive, send)
+        await self.app(scope, limited_receive, send)
 
     @staticmethod
     async def _too_large(send):

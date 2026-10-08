@@ -183,3 +183,43 @@ def test_entrypoint_prepares_once_before_starting_uvicorn(monkeypatch):
         monkeypatch.setattr(entrypoint.uvicorn, "run", lambda *args, **kwargs: events.append(("run", kwargs["workers"])))
         entrypoint.main()
         assert events == [("prepare", model_id), ("run", 1)]
+
+
+def test_body_limit_passes_chunks_to_parser_without_prebuffering():
+    for model in ("e5-small", "user-bge-m3", "rapid-v5-mobile", "whisper-large-v3"):
+        middleware_type = load_service(model).app._RequestBodyLimitMiddleware
+
+        async def invoke():
+            reads = 0
+            observations = []
+
+            async def receive():
+                nonlocal reads
+                reads += 1
+                return {"type": "http.request", "body": b"abcd", "more_body": reads == 1}
+
+            async def downstream(scope, receive, send):
+                for _ in range(2):
+                    await receive()
+                    observations.append(reads)
+
+            async def send(message):
+                raise AssertionError("body fits; middleware must not send a response")
+
+            await middleware_type(downstream, max_body=8)({"type": "http", "headers": []}, receive, send)
+            assert observations == [1, 2]
+
+        asyncio.run(invoke())
+
+
+def test_streamed_multipart_limit_returns_413_before_inference():
+    for model, route, field in (
+        ("rapid-v5-mobile", "/rapid-v5-mobile/ocr", "file"),
+        ("whisper-large-v3", "/whisper-large-v3/transcribe", "file"),
+    ):
+        payload = (f'--fixture\r\nContent-Disposition: form-data; name="{field}"; filename="sample.wav"\r\n'
+                   'Content-Type: application/octet-stream\r\n\r\n').encode() + b"x" * 256 + b"\r\n--fixture--\r\n"
+        with client(model, max_request_body_bytes=192) as c:
+            response = c.post(route, content=iter([payload[:160], payload[160:]]),
+                              headers={"content-type": "multipart/form-data; boundary=fixture"})
+            assert response.status_code == 413
