@@ -1,0 +1,25 @@
+# Model inference services
+
+READY: yes
+
+## Goal and decisions
+
+Extend the existing public `cndfdv/ml-inference-services` repository in a new `model-inference/` directory. Deploy on the user's `ssh home` host with `/home/knyze/model-inference` as the runtime entry. Run four isolated HTTP services on its RTX 4060 Ti: multilingual-e5-small, deepvk/USER-bge-m3, RapidOCR PP-OCRv5 mobile with Cyrillic recognizer, and Whisper large-v3. Existing CPU services remain available. Preserve benchmark revisions, pooling, normalization and OCR preprocessing. Default USER runtime is the measured FP32 ONNX graph on CUDA and CPU; CPU INT8 remains an explicit compatibility option. Whisper uses one pinned faster-whisper large-v3 converted checkpoint with float32 execution on both devices. Never substitute a different checkpoint to exploit the GPU. Disable reduced-precision math by default. Compare real GPU service outputs with CPU/INT8 benchmark references before claiming parity.
+
+Expose only model-named inference endpoints: `/e5-small/embed`, `/user-bge-m3/embed`, `/rapid-v5-mobile/ocr` (upload) and `/rapid-v5-mobile/ocr/batch` (JSON), `/whisper-large-v3/transcribe` (upload, optional file batch). Use explicit request batches and bounded dynamic microbatching; configurable process workers default to one per service. Recognition crops are batched by RapidOCR; page detection is per page. Whisper files are queued independently with stable decoder settings; true chunk batching must not silently change decoding semantics. Expose localhost ports 18101/18102/18103/18104 and container-network aliases. Each model supports CPU and CUDA and its own worker setting. Include CPU compose mode for parity and deployment. No edits to the existing benchmark repository or other running projects. Weights and caches stay out of Git. Public publishing is explicitly authorized by the user.
+
+## Implementation and ownership
+
+1. [seq: 1] Primary: inspect SSH/Docker/GPU, prepare this plan and contracts. Acceptance: known model pins, free ports, usable container GPU. Verify with Docker GPU probe; use an isolated Docker client config if the existing desktop credential helper is unavailable.
+2. [seq: 2] API worker owns `inference/app.py`, `settings.py`, `batching.py`, `__init__.py`, `__main__.py`, and `tests/test_api.py`, `test_batching.py`. Acceptance: per-item ordered batches, queue limits, request timeout, readiness, model metadata, configurable workers, four model-named routes and safe image/PDF/audio input validation. Focused fake-backend tests.
+3. [seq: 2] Backend worker owns `inference/backends.py`, `models.lock.json`, `scripts/prepare_models.py`, `tests/test_backends.py`. Acceptance: exact pinned weights; CUDA required when configured; E5 prefixed masked mean, USER normalized ONNX CLS, Rapid Cyrillic with measured preprocessing, Whisper large-v3 float32 transcription; local import/download of weights, immutable manifests; CPU reference mode. Mock/unit checks plus primary real GPU checks.
+4. [seq: 3] Primary owns Dockerfile, requirements, compose files, wrappers, README/docs, quality/smoke scripts and CI. Integrate after both contracts pass. Build/run on home. Verify HTTP, real batching/concurrent clients, multiple workers, GPU providers, CPU/GPU outputs and retrieval metrics on saved benchmark data. Record observed tolerances and limits.
+5. [seq: 4] Read-only reviewer checks substantial API/batching/GPU and parity risks. Fix material findings. Integrate into an isolated checkout of existing public ml-inference-services, inspect tracked files for unintended data, commit and push a branch with a PR. Check remote checkout and public visibility.
+
+## Verification and risks
+
+Run unit tests, compose validation, image builds, startup health checks, real HTTP smoke/concurrency, all-model CPU/GPU smoke, embedding/OCR parity and USER INT8 comparison. Whisper parity uses a rights-clear speech fixture and does not replace an ASR corpus benchmark. Retain concise validation evidence in docs. Exact floating-point equality is not assumed across devices; quality parity is assessed on bounded fixtures and must be repeated on application fixtures. One GPU is shared with existing workloads; worker count multiplies VRAM. Do not stop other containers or clear caches. Full 8192-token concurrent USER throughput is not a performance promise.
+
+## Implementation milestone: 2026-10-08
+
+Waves 1–4 implemented and verified on home. All four CUDA services ready; 17 unit tests passed, three Compose modes validated, two CPU E5 workers observed through HTTP. Saved 65-query search and 60-page OCR comparisons show no FP32 quality degradation; Whisper CPU/GPU transcript matches on the upstream 11-second JFK fixture. Read-only review has no remaining material code findings. Evidence and reproduction commands are in `docs/VALIDATION.md`. Publishing uses branch `codex/model-inference-cpu-gpu` in the existing public repository, followed by a remote Git checkout. Temporary CPU verification container remains saved because automatic command review rejected cleanup; it does not belong to the four-service Compose project.

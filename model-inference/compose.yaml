@@ -1,0 +1,60 @@
+name: model-inference
+x-runtime: &runtime
+  image: model-inference:local
+  build: .
+  restart: unless-stopped
+  init: true
+  volumes:
+    - ./models:/models:ro
+  networks: [inference]
+  environment: &environment
+    MODEL_DIR: /models
+    DEVICE: cuda
+    USER_VARIANT: fp32
+    MAX_BATCH_SIZE: ${MAX_BATCH_SIZE:-16}
+    MAX_BATCH_TOKENS: ${MAX_BATCH_TOKENS:-8192}
+    BATCH_WAIT_MS: ${BATCH_WAIT_MS:-10}
+    MAX_QUEUE_ITEMS: ${MAX_QUEUE_ITEMS:-256}
+    REQUEST_TIMEOUT_S: ${REQUEST_TIMEOUT_S:-600}
+    MAX_REQUEST_ITEMS: ${MAX_REQUEST_ITEMS:-64}
+    MAX_REQUEST_BODY_BYTES: ${MAX_REQUEST_BODY_BYTES:-67108864}
+    CPU_THREADS: ${CPU_THREADS:-4}
+    REC_BATCH_SIZE: ${REC_BATCH_SIZE:-6}
+services:
+  e5-small:
+    <<: *runtime
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${E5_PORT:-18101}:8000"]
+    environment:
+      <<: *environment
+      MODEL_ID: e5-small
+      DEVICE: ${E5_DEVICE:-cuda}
+      WORKERS: ${E5_WORKERS:-1}
+  user-bge-m3:
+    <<: *runtime
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${USER_PORT:-18102}:8000"]
+    environment:
+      <<: *environment
+      MODEL_ID: user-bge-m3
+      DEVICE: ${USER_DEVICE:-cuda}
+      WORKERS: ${USER_WORKERS:-1}
+  rapid-v5-mobile:
+    <<: *runtime
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${OCR_PORT:-18103}:8000"]
+    environment:
+      <<: *environment
+      MODEL_ID: rapid-v5-mobile
+      DEVICE: ${OCR_DEVICE:-cuda}
+      WORKERS: ${OCR_WORKERS:-1}
+  whisper-large-v3:
+    <<: *runtime
+    ports: ["${BIND_ADDRESS:-127.0.0.1}:${WHISPER_PORT:-18104}:8000"]
+    environment:
+      <<: *environment
+      MODEL_ID: whisper-large-v3
+      DEVICE: ${WHISPER_DEVICE:-cuda}
+      WORKERS: ${WHISPER_WORKERS:-1}
+      MAX_BATCH_SIZE: ${WHISPER_BATCH_SIZE:-1}
+      MAX_AUDIO_DURATION_S: ${MAX_AUDIO_DURATION_S:-600}
+networks:
+  inference:
+    name: model-inference

@@ -1,0 +1,13 @@
+# WSL2 native Docker daemon without NVIDIA Container Toolkit.
+# The complete driver store is needed, not only /usr/lib/wsl/lib.
+x-wsl: &wsl
+  devices: ["/dev/dxg:/dev/dxg"]
+  volumes:
+    - /usr/lib/wsl:/usr/lib/wsl:ro
+  environment:
+    LD_LIBRARY_PATH: /usr/lib/wsl/lib:/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib
+services:
+  e5-small: *wsl
+  user-bge-m3: *wsl
+  rapid-v5-mobile: *wsl
+  whisper-large-v3: *wsl
