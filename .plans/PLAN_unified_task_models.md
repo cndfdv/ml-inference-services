@@ -100,3 +100,29 @@ Requested physical Windows disk space and restart details; root cause remains
 unconfirmed. Prepared a detached verification helper, but did not launch it.
 Code/main objective is delivered; final independent GPU deployment and parity
 remain an explicitly unverified operational follow-up.
+
+## Selected GPU services, 2026-10-09
+
+Latest user scope: keep USER-bge-m3 and RapidOCR PP-OCRv5 mobile on GPU;
+stop E5/Whisper and remove their weights and obsolete copies. Preserve the two
+selected bundles to avoid redownload. A local PreToolUse hook requires a literal
+risk approval for the stop/delete command, so cleanup is pending independently
+of permitted builds and startup checks.
+
+Both selected independent images built, but real GPU startup revealed missing
+libcurand.so.10/libcufft.so.11. The aggregate PyTorch CUDA image supplied these
+implicitly; the CPU PyTorch USER image and Torch-free Rapid image did not.
+Add matching pinned cuRAND/cuFFT/nvJitLink wheels and Docker/WSL loader paths.
+Both Dockerfiles now check CUDA provider shared library linkage with ldd during
+build, without requiring a GPU or directly loading the provider, to catch incomplete direct/transitive dependencies. Check
+Compose modes, build these images sequentially, recreate only the selected
+services, and validate CUDA metadata plus real embedding/OCR batches. Publish
+the confirmed source fix to the already-authorized main and update clean local
+checkout. Do not report only two models active before stop approval is executed.
+
+Both repaired builds passed linkage checks and both independent GPU containers
+are healthy. HTTP batch gates passed: two USER 1024d/L2 vectors, two OCR pages
+with identical nonempty 14-line text. Real USER CPU/GPU query/passage minimum
+cosine 0.9999999999991536; Rapid CPU/GPU fixture text identical. Pins, hashes and
+contract fingerprints match. Stop/cleanup remains pending the local hook's
+literal risk approval; the previously running E5/Whisper were not stopped.

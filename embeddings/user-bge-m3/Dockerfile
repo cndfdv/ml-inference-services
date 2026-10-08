@@ -6,8 +6,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 li
 RUN pip install --no-cache-dir torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir -r requirements.txt
-ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib \
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_nvrtc/lib:/usr/local/lib/python3.11/site-packages/nvidia/curand/lib:/usr/local/lib/python3.11/site-packages/nvidia/cufft/lib:/usr/local/lib/python3.11/site-packages/nvidia/nvjitlink/lib \
     HF_HOME=/models/.hf-cache MODEL_DIR=/models DEVICE=cpu PREPARE_MODE=auto
+# Resolve the CUDA provider's full dependency chain without requiring a GPU at build time.
+RUN ldd /usr/local/lib/python3.11/site-packages/onnxruntime/capi/libonnxruntime_providers_cuda.so > /tmp/ort-cuda-linkage.txt \
+    && cat /tmp/ort-cuda-linkage.txt && ! grep -q "not found" /tmp/ort-cuda-linkage.txt
 COPY . /app/service/
 RUN useradd --uid 10001 --create-home inference \
     && mkdir -p /models && chown inference:inference /models

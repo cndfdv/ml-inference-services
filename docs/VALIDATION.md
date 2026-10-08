@@ -171,5 +171,29 @@ DOCKER_CONFIG="$PWD/.docker-client" docker run --rm \
 DOCKER_CONFIG="$PWD/.docker-client" docker run --rm \
   -v "$PWD/scripts:/checks:ro" -v ml-services-e5-small-weights:/models:ro \
   ml-services-e5-small:local \
-  python /checks/check_startup.py --model e5-small --workers 2
+python /checks/check_startup.py --model e5-small --workers 2
 ```
+
+## Выбранные USER-bge-m3 и RapidOCR на GPU, 9 октября 2026
+
+По новой просьбе пользователя подготовлены только эти два сервиса в режиме
+CUDA, FP32, по одному HTTP-воркеру. Независимые образы первоначально не содержали
+cuRAND/cuFFT, которые раньше приходили с общим CUDA PyTorch. Добавлены
+закреплённые cuRAND/cuFFT/nvJitLink и пути загрузчика в Docker/WSL. Обе сборки
+прошли новую проверку `ldd`: отсутствующих зависимостей CUDA-провайдера нет.
+CPU/GPU/WSL Compose-конфигурации прошли `make config`.
+
+Оба новых контейнера проходят readiness и сообщают `cuda`, `fp32`,
+`CUDAExecutionProvider`. Реальный HTTP-батч USER вернул два нормализованных
+вектора размерности 1024; OCR-батч из двух одинаковых страниц вернул одинаковый
+непустой текст с 14 строками. Отдельный CPU backend USER совпал с GPU для query
+и passage: минимальный cosine 0.9999999999991536, максимальная разница компоненты
+1.8335339605629608e-7. Ревизии, SHA-256 и contract fingerprint совпали.
+Для RapidOCR отдельный CPU backend выдал тот же текст на странице с 14 строками,
+что GPU HTTP; закреплённые metadata также совпали.
+
+Это проверка выбранных сервисов, а не повторение полного корпуса выше.
+E5/Whisper и удаление ненужных весов остаются отдельно: локальный защитный hook
+заблокировал stop/delete и требует буквальное подтверждение владельца.
+До выполнения подтверждённой команды нельзя считать, что активны только две
+модели. JSON-отчёты сохранены на home в `artifacts/two-*.json` вне Git.

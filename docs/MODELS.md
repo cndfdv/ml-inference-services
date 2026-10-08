@@ -21,6 +21,14 @@ USER FP32 — ONNX opset 17 с динамическими размерами bat
 CUDA и cuDNN должны соответствовать ONNX Runtime:
 [таблица совместимости](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html).
 
+В отдельных образах USER и RapidOCR CUDA-библиотеки устанавливаются явно,
+включая cuRAND, cuFFT и nvJitLink. CPU-сборка PyTorch в USER их не предоставляет.
+При сборке этих образов `ldd` проверяет зависимости `libonnxruntime_providers_cuda.so`
+без запуска GPU-провайдера: отсутствующая прямая или транзитивная зависимость прерывает сборку.
+В WSL пути к этим библиотекам также входят в `LD_LIBRARY_PATH` overlay.
+Это проверяет комплектность образа; работа CUDA на хосте проверяется отдельно
+через readiness, metadata и реальный инференс.
+
 Источники и условия моделей:
 
 - [E5-small, model card, MIT](https://huggingface.co/intfloat/multilingual-e5-small).
