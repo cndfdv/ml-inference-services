@@ -18,3 +18,25 @@ Refactor the existing public repository in place and merge into main. Root task 
 ## Verification and operational constraints
 
 Use focused unit/acceptance tests and all-model HTTP GPU smoke, real CPU/GPU parity against saved benchmark artifacts, preparation missing/cache/corruption gates, Docker build and Compose profile/device/worker configuration. USER exporter must match the measured opset-17 legacy exporter. OCR recognizer remains Cyrillic mobile; Whisper remains large-v3 with same decode settings and sequential file batching per worker. First-start download may be slow; no readiness until weights are valid. One copy per worker; GPU workers default to one on 16 GB. CPU-only GigaAM/EasyOCR remain explicitly documented CPU alternatives. No auth material reads; actual .env files and weights preserved by file movement only. Migration must not stop unrelated containers or destroy existing caches.
+
+## Handoff, 2026-10-08
+
+Waves 1–5 complete. Public branch `codex/unified-model-services`, draft PR #2.
+51 unit/contract tests passed; clean CI passed after adding uvicorn to dev dependencies.
+All six CPU/GPU/WSL Compose configurations resolved on home. Read-only review passed
+following streamed body-limit fix. Each OpenAPI schema now uses fixed model-specific paths.
+
+Wave 6 remains open: five independent images built, E5 reached image export; GigaAM
+and EasyOCR real health/startup passed. Whisper CPU loaded and reached readiness;
+verification helper import fixed, final audio inference pending. Existing E5/USER/Rapid
+bundles copied without overwrite to separate named volumes; E5 ownership set to 10001.
+Whisper copy and remaining ownership/checksum validation need confirmation. Original
+bundles and old running deployment were not removed or intentionally stopped.
+
+Home system commands then failed with SIGBUS and SSH became unavailable. Human
+was asked to restore host/WSL/SSH. Finish image build and one-at-a-time CPU checks,
+Rapid first/cached startup, CPU workers, controlled replacement of the four GPU services,
+full saved embedding/OCR quality comparison and Whisper fixture, then mark PR ready,
+merge main and fast-forward clean home/local checkouts. Preserve original local ignored
+.env/models under asr-gigaam, ocr and embedder when migrating; no auth reads.
+Do not claim deployment or quality verification complete until observed.
