@@ -9,8 +9,6 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from service.backend import create_backend
-from service.settings import Settings
 from smoke import request
 
 
@@ -39,6 +37,10 @@ def main():
     p.add_argument("--audio", type=Path)
     p.add_argument("--language", default="ru")
     a = p.parse_args()
+    sys.path.insert(0, str(Path.cwd()))
+    from service.backend import create_backend
+    from service.settings import Settings
+
     config = Settings(model_id=a.model, model_dir=a.model_dir, device="cpu")
     config.validate()
     backend = create_backend(config)
